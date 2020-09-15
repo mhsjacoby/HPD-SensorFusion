@@ -57,7 +57,6 @@ def write_occupancy_df(path):
     occ_df['occupied'] = occ_df[list(occupants.keys())].max(axis=1)
     occ_df.index = pd.to_datetime(occ_df.index)
     occ_df.index.name = 'timestamp'
-    print(occ_df)        
     fname = os.path.join(save_path, f'{home_system}_occupancy.csv')
     occ_df.to_csv(fname, index = True)
     print(fname + ': Write Successful!')

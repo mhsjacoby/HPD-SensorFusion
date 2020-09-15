@@ -143,4 +143,11 @@ class FFA_instance():
 
             TPR.append(float(f'{tpr:.4}'))
             FPR.append(float(f'{fpr:.4}'))
+
+
+            tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
+            fpr = fp/(fp+tn) if fp+tn > 0 else 0.0
+
+            TPR.append(float(f'{tpr:.4}'))
+            FPR.append(float(f'{fpr:.4}'))
         return {'TPR': TPR, 'FPR': FPR, 'f1': f1, 'accuracy': acc}
