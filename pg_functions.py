@@ -1,3 +1,14 @@
+"""
+pg_functions.py
+Author: Maggie Jacoby
+Last updated: September 7, 2020
+
+Functions for interacting with a PostgreSQL database from python
+
+"""
+
+
+
 import psycopg2
 import psycopg2.extras as extras
 
@@ -79,7 +90,8 @@ class PostgreSQL(Structs):
             if conn is not None:
                 conn.close()
                 print('>Database connection closed.')  
-                
+
+
     def create_table(self, schema='public', t_name=None):
         table_name = self.home + '_inference' if not t_name else self.home + t_name
         print(f'Creating table: {table_name}')

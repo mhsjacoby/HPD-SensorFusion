@@ -1,3 +1,16 @@
+"""
+prepare_data_for_DB.py
+imported into create_pgDB.py as db_import
+
+Author: Maggie Jacoby
+Last update: September 3, 2020
+
+Function for reading in the inferences and creating a pandas df to input into postgres
+
+
+"""
+
+
 import os
 import sys
 import csv
@@ -10,7 +23,7 @@ from my_functions import *
 
 
 def read_join(path, save_loc=''):
-    home_system = os.path.basename(path)
+    home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
 
     save_path = make_storage_directory(save_loc) if len(save_loc) > 0 else make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences'))
@@ -74,3 +87,4 @@ def read_join(path, save_loc=''):
     df.to_csv(os.path.join(save_path, f'{home_system}_full_inf.csv'))
     
     return(df)
+

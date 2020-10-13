@@ -12,7 +12,7 @@ from my_functions import *
 
 
 def write_occupancy_df(path):
-    home_system = os.path.basename(path)
+    home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
 
     save_path = make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences/'))
