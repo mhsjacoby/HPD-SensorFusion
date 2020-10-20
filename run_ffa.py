@@ -2,11 +2,15 @@
 run_ffa.py
 Author: Maggie Jacoby, August 28 2020
 
-These classes are used to generate objects for each home, and individual FFA runs. Import into Load_data_into_pstgres notebook
+These classes are used to generate objects for each home, and individual FFA runs. 
+Import into Load_data_into_pstgres notebook or run stand alone (preferred).
 """
 
 import os
+import sys
 import csv
+import argparse
+import itertools
 import numpy as np
 import pandas as pd
 from glob import glob
@@ -14,29 +18,34 @@ from datetime import datetime, timedelta
 
 from functools import reduce
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
+
 from my_functions import *
+
+from pg_functions import *
 
 
 
 
 class Home():
     
-    def __init__(self, path, pg, spec_file=''):
-        self.path = path
+    def __init__(self, pg, system, level):
+        # self.path = path
         self.pg = pg
-        system = path.strip('/').split('/')[-1].lower().split('-')
-        self.pg_system = f'{system[0]}_{system[1]}'
+        self.system = system.lower().split('-')
+        self.pg_system = pg.home
+        self.level = level
         self.hubs = self.get_distinct_from_DB('hub')
         self.days = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
-        self.spec_file = spec_file
-        self.run_specifications = self.get_FFA_output(spec_file=self.spec_file)
+    #     # self.spec_file = spec_file
+        self.run_specifications = self.get_FFA_output()
 
         
     def get_distinct_from_DB(self, col):
+        print(self.pg_system)
 
         query = """
             SELECT DISTINCT %s
-            FROM %s_inference_filled;
+            FROM %s_inf;
             """ %(col, self.pg_system)
 
         distinct = self.pg.query_db(query)[col].unique()
@@ -46,25 +55,27 @@ class Home():
     def select_from_hub(self, hub, mod):
 
         select_query = """
-            SELECT day, hr_min_sec, hub, env, %s, occupied
-            FROM %s_inference_filled
-            WHERE %s_inference_filled.hub = '%s'
+            SELECT day, hr_min_sec, hub, %s, occupied
+            FROM %s_inf
+            WHERE %s_inf.hub = '%s'
             """ %(mod, self.pg_system, self.pg_system, hub)
 
         return select_query
 
 
-    def get_FFA_output(self, spec_file, level='L2'):
-        spec_path = glob(f'{self.path}/Inference_DB/run_specs/*_{level}.csv') if len(spec_file) == 0 else [os.path.join(f'{self.path}/Inference_DB/run_specs/{spec_file}')]
-        run_file = spec_path[0]
+    def get_FFA_output(self):
+        # spec_path = glob(f'{self.path}/Inference_DB/run_specs/*_{level}.csv') if len(spec_file) == 0 else [os.path.join(f'{self.path}/Inference_DB/run_specs/{spec_file}')]
+        spec_path = f'/Users/maggie/Documents/Github/HPD-Inference_and_Processing/SensorFusion/fracfact_output'
+        num_hubs = len(self.hubs)
+        run_file = os.path.join(spec_path, f'{num_hubs}_hub_{self.level}.csv' )
+
+        # run_file = spec_path[0]
         run_specifications = []
         with open(run_file) as FFA_output:
             for i, row in enumerate(csv.reader(FFA_output), 1):
                 run_specifications.append((i, row))
+        print(run_specifications)
         return run_specifications
-
-
-
 
 
 
@@ -83,8 +94,14 @@ class FFA_instance():
         self.rate_results = self.test_days(days=self.Home.days)
         
         self.TPR, self.FPR = np.mean(self.rate_results['TPR']), np.mean(self.rate_results['FPR'])
+        self.TNR, self.FNR = np.mean(self.rate_results['TNR']), np.mean(self.rate_results['FNR']) 
         self.f1, self.accuracy = np.mean(self.rate_results['f1']), np.mean(self.rate_results['accuracy'])
-         
+
+        self.var_TPR, self.var_FPR = np.var(self.rate_results['TPR']), np.var(self.rate_results['FPR'])
+        self.var_TNR, self.var_FNR = np.var(self.rate_results['TNR']), np.var(self.rate_results['FNR']) 
+        self.var_f1, self.var_accuracy = np.var(self.rate_results['f1']), np.var(self.rate_results['accuracy'])
+        
+
     def check_spec(self):
         if len(self.spec) != len(self.Home.hubs):
             print(f'Incorrect run specification. {len(self.Home.hubs)} hubs and {len(self.spec)} spots in FFA.')
@@ -106,7 +123,7 @@ class FFA_instance():
             print(f'hub: {hub}, modality: {mod}')
             hub_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
             hub_df.drop(columns=['hub'], inplace=True)
-            rename_cols = {mod:f'{mod}_{hub[2]}', "env": f'env_{hub[2]}'}
+            rename_cols = {mod:f'{mod}_{hub[2]}'}#, "env": f'env_{hub[2]}'}
             hub_df.rename(columns = rename_cols, inplace=True)
             df_list.append(hub_df)
 
@@ -128,7 +145,7 @@ class FFA_instance():
         
 
     def test_days(self, days):
-        TPR, FPR, f1, acc = [], [], [], []
+        TPR, FPR, TNR, FNR, f1, acc = [], [], [], [], [], []
         
         for day_str in sorted(days):
             day = datetime.strptime(day_str, '%Y-%m-%d').date()
@@ -141,13 +158,120 @@ class FFA_instance():
             tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
             fpr = fp/(fp+tn) if fp+tn > 0 else 0.0
 
-            TPR.append(float(f'{tpr:.4}'))
-            FPR.append(float(f'{fpr:.4}'))
-
-
-            tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
-            fpr = fp/(fp+tn) if fp+tn > 0 else 0.0
+            tnr = tn/(tn+fp) if tn+fp > 0 else 0.0
+            fnr = fn/(fn+tp) if fn+tp > 0 else 0.0
 
             TPR.append(float(f'{tpr:.4}'))
             FPR.append(float(f'{fpr:.4}'))
-        return {'TPR': TPR, 'FPR': FPR, 'f1': f1, 'accuracy': acc}
+
+            TNR.append(float(f'{tnr:.4}'))
+            FNR.append(float(f'{fnr:.4}'))
+
+        return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}
+
+
+def get_instances(H):
+
+    d = {
+        'Run': [], 'Inclusion': [], 'Name': [],
+        'False Positive Rate': [], 'True Positive Rate': [],
+        'False Negative Rate': [], 'True Negative Rate': [],
+        'F1-Score': [], 'Accuracy': []
+        }
+
+    # V = {'FPR_var': [], 'TPR_var': [], 'FNR_var': [], 'TNR_var': [], 'f1_var': [], 'acc_var': []}
+    V = {
+        'False Positive Rate': [], 'True Positive Rate': [],
+        'False Negative Rate': [], 'True Negative Rate': [],
+        'F1-Score': [], 'Accuracy': []
+        }
+
+
+    all_instances = {}
+
+    for x in H.run_specifications:
+        inst = FFA_instance(x, H)
+        
+        all_instances[inst.run] = inst
+        
+        d['False Positive Rate'].append(inst.FPR)
+        d['True Positive Rate'].append(inst.TPR)
+
+        d['False Negative Rate'].append(inst.FNR)
+        d['True Negative Rate'].append(inst.TNR)
+        
+        d['Run'].append(inst.run)
+        d['Inclusion'].append(inst.spec)
+        d['F1-Score'].append(inst.f1)
+        d['Accuracy'].append(inst.accuracy)
+        d['Name'].append(f'Run {inst.run}: {inst.run_modalities}')
+
+        # V['FPR_var'].append(inst.var_FPR)
+        # V['FNR_var'].append(inst.var_FNR)
+        # V['TPR_var'].append(inst.var_TPR)
+        # V['TNR_var'].append(inst.var_TNR)
+        # V['f1_var'].append(inst.var_f1)
+        # V['acc_var'].append(inst.var_accuracy)
+        V['False Positive Rate'].append(inst.var_FPR)
+        V['True Positive Rate'].append(inst.var_TPR)
+        V['False Negative Rate'].append(inst.var_FNR)
+        V['True Negative Rate'].append(inst.var_TNR)
+        V['F1-Score'].append(inst.var_f1)
+        V['Accuracy'].append(inst.var_accuracy) 
+
+
+    SE = {}
+    for v in V:
+        SE[v] = np.sqrt(np.sum(V[v])/len(V[v]))
+
+
+    SE_df = pd.DataFrame(SE, index=['SE'])
+    roc_df = pd.DataFrame(d)
+
+    return roc_df, SE_df
+
+
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(description="Description")
+
+    # parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
+    parser.add_argument('-system', '--system', type=str)
+    parser.add_argument('-level', '--level', type=str, default='full')
+    args = parser.parse_args()
+
+    home_system = args.system
+    H_num, color = home_system.split('-')
+    run_level = args.level
+
+    home_parameters = {'home': f'{H_num.lower()}_{color}'}
+    
+    pg = PostgreSQL(home_parameters)
+
+    H = Home(pg=pg, system=home_system, level=run_level)
+
+
+    roc_df, SE = get_instances(H)
+  
+    df2 = pd.DataFrame(roc_df['Inclusion'].to_list(), columns=H.hubs)
+
+    df2.index = roc_df.index
+    df2 = df2.merge(roc_df, left_index=True, right_index=True)
+    df2.index = df2['Run']
+    df2.drop(columns=['Inclusion', 'Run'], inplace=True)
+    dfwSE = df2.append(SE, ignore_index=False)
+    dfwSE.index.rename('Run')
+    print(dfwSE)
+
+                    
+    # print(df2)
+    # get_metrics(df2)
+
+    
+
+
+    # all_runs_df = pd.DataFrame.from_dict(roc_df)
+    # all_runs_df.to_csv(f'/Users/maggie/Desktop/FFA_output/roc_df_{home_system}_{run_level}.csv')
+
+    # var_df.to_csv(f'/Users/maggie/Desktop/FFA_output/varianvce_{home_system}_{run_level}.csv')
+    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/wSE_{home_system}_{run_level}.csv', index_label='Run')

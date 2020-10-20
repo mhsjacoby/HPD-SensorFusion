@@ -92,8 +92,8 @@ class PostgreSQL(Structs):
                 print('>Database connection closed.')  
 
 
-    def create_table(self, schema='public', t_name=None):
-        table_name = self.home + '_inference' if not t_name else self.home + t_name
+    def create_table(self, schema='public', table_name=None):
+        # table_name = self.home + '_inference' if not t_name else self.home + t_name
         print(f'Creating table: {table_name}')
         self.inf_table = f'{schema}.{table_name}'
         ex = self.inference_table.replace("tab", table_name).replace("curr_schema", schema)

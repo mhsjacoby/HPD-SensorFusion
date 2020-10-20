@@ -9,9 +9,6 @@ checks to see if ...occupancy.csv exists and if ...inf.csv exists, if so, reads 
 
 """
 
-# import psycopg2
-# import psycopg2.extras as extras
-
 import os
 import sys
 import csv
@@ -23,42 +20,38 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 
-# from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
-# from functools import reduce
-
 from my_functions import *
 from pg_functions import *
 from write_occupancy import *
 
 import prepare_data_for_DB as db_import
-# import run_ffa as FFA
 
 
 
-img_ffill_limit = 6
+img_ffill_limit = 1
 img_bfill_limit = 1
 
 
 def read_data():
     inf_df = db_import.read_join(root_dir)
     summarize_df(inf_df)
-
-    """ Use filled_df if filling to simulate time persistency, else use inf_df_dumb_fill """
     filled_df = fill_df(inf_df)
-    summarize_df(filled_df, name='after_fill')
-    # filled_df = inf_df.fillna(0)
-    # summarize(filled_df, name='dumb_fill')
+    filled_df.fillna(value=0, inplace=True)
+    summarize_df(filled_df, name='0_fill')
     return filled_df
 
 def summarize_df(df, name='before_fill'):
-    fname = os.path.join(root_dir, 'Summaries', f'{home_system}_inf_{name}_summary.txt')
+    fname = os.path.join(root_dir, 'Summaries', f'{home_system}_inf_{name}.txt')
     with open(fname, 'w+') as writer:
         for col in [ 'audio',  'env',  'img',  'occupied']:
-            writer.write(f'\n{col}\n {df[col].value_counts()}')
-            writer.write(f'nan: {df[col].isnull().sum()/len(df):.2}\n')
+            # print(col)
+            # print(df[col].value_counts())
+            print(df[col].value_counts(normalize=True))
+            writer.write(f'\n{col}\n {df[col].value_counts(normalize=True)}')
+            writer.write(f'\nnan: {df[col].isnull().sum()/len(df[col])}\n')
 
-            print(f'{col}\n {df[col].value_counts()}')
-            print(f'nan: {df[col].isnull().sum()/len(df):.2}\n')
+            # print(f'{col}\n {df[col].value_counts()/len(df[col]):.2}')
+            # print(f'nan: {df[col].isnull().sum()/len(df[col]):.2}\n')
     writer.close()
     print(f'{fname} : Write Sucessful!')
 
@@ -73,12 +66,14 @@ def fill_df(df):
 
 
 def create_pg(df, drop=False):
-    print(df)
-    table_name = f'{H_num.lower()}_{color}_inference_filled'
+    # print(df)
+    # table_name = f'{H_num.lower()}_{color}_inference'
+    table_name = f'{home_parameters["home"]}_inf'
+
     if drop:
         pg.drop_table(table_name)
 
-    pg.create_table(t_name='_inference_filled')
+    pg.create_table(table_name=table_name)
     pg.insert_table(df=df, table=table_name)
 
 
@@ -90,27 +85,29 @@ if __name__ == '__main__':
     root_dir = args.path
 
     home_system = os.path.basename(root_dir.strip('/'))
-    H_num, color = home_system.split('-')
+    # H_num, color = home_system.split('-')
 
     occ_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_occupancy.csv')
     if not os.path.isfile(occ_file):
-        print('No occupancy sumamry found. Generating CSV...')
+        print('No occupancy summary found. Generating CSV...')
         write_occupancy_df(root_dir)
     
     inf_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_full_inf.csv')
     if not os.path.isfile(inf_file):
         print('Full inference not found. Generating inference CSV....')
         final_df = read_data()
-        # final_df.index=final_df['entry_id']
     else:
         print(f'Reading df from: {inf_file}')
-        final_df = pd.read_csv(inf_file)#, index_col='entry_id')
+        final_df = pd.read_csv(inf_file)
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
+        summarize_df(final_df, name='after_read')
+        
 
     for col in ['img', 'audio', 'env', 'occupied']:
         final_df[col] = final_df[col].fillna(0.0).astype(int)
 
-    home_parameters = {'directory': root_dir, 'home': f'{H_num.lower()}_{color}'}
+    # home_parameters = {'home': f'{H_num.lower()}_{color}'}
+    home_parameters = {'home': home_system.lower().replace('-', '_')}
     pg = PostgreSQL(home_parameters)
-    create_pg(final_df)
+    create_pg(final_df, drop=True)
 
