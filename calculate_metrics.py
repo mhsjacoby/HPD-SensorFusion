@@ -49,7 +49,7 @@ def get_effects(hub_df, metric_df):
     div = len(metric_df)/2
     for metric in metric_df.columns:
         new_df = hub_df.multiply(metric_df[metric], axis='index')
-        sum_col = 100*new_df.sum(axis=0)
+        sum_col = new_df.sum(axis=0)/div
         sum_col.rename(metric, inplace=True)
         full_metrics.append(sum_col)
     full_metrics = pd.concat(full_metrics, axis=1)
@@ -102,6 +102,7 @@ if __name__ == '__main__':
     parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     args = parser.parse_args()
     file_path = args.path
+    
 
     home_system = os.path.basename(file_path.strip('/')).split('_')[0]
     view_set = os.path.basename(file_path.strip('/')).split('_')[-1].strip('.csv')
@@ -119,7 +120,7 @@ if __name__ == '__main__':
 
     ThreeFI = get_interactions(hub_df, level=3)
     Three_level_effects = get_effects(ThreeFI, metric_df)
-    Three_level_effects.to_csv(os.path.join(root_dir, f'{home_system}_3FI_effects.csv'))
+    # Three_level_effects.to_csv(os.path.join(root_dir, f'{home_system}_3FI_effects.csv'))
 
     full_effects = pd.concat([Main_effects, Two_level_effects, Three_level_effects], axis=0)
 

@@ -1,6 +1,7 @@
 """
 run_ffa.py
-Author: Maggie Jacoby, August 28 2020
+Author: Maggie Jacoby
+Edited: 2020-10-20 - calculate variance of runs
 
 These classes are used to generate objects for each home, and individual FFA runs. 
 Import into Load_data_into_pstgres notebook or run stand alone (preferred).
@@ -29,14 +30,12 @@ from pg_functions import *
 class Home():
     
     def __init__(self, pg, system, level):
-        # self.path = path
         self.pg = pg
         self.system = system.lower().split('-')
         self.pg_system = pg.home
         self.level = level
         self.hubs = self.get_distinct_from_DB('hub')
         self.days = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
-    #     # self.spec_file = spec_file
         self.run_specifications = self.get_FFA_output()
 
         
@@ -64,12 +63,10 @@ class Home():
 
 
     def get_FFA_output(self):
-        # spec_path = glob(f'{self.path}/Inference_DB/run_specs/*_{level}.csv') if len(spec_file) == 0 else [os.path.join(f'{self.path}/Inference_DB/run_specs/{spec_file}')]
         spec_path = f'/Users/maggie/Documents/Github/HPD-Inference_and_Processing/SensorFusion/fracfact_output'
         num_hubs = len(self.hubs)
         run_file = os.path.join(spec_path, f'{num_hubs}_hub_{self.level}.csv' )
 
-        # run_file = spec_path[0]
         run_specifications = []
         with open(run_file) as FFA_output:
             for i, row in enumerate(csv.reader(FFA_output), 1):
@@ -123,7 +120,7 @@ class FFA_instance():
             print(f'hub: {hub}, modality: {mod}')
             hub_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
             hub_df.drop(columns=['hub'], inplace=True)
-            rename_cols = {mod:f'{mod}_{hub[2]}'}#, "env": f'env_{hub[2]}'}
+            rename_cols = {mod:f'{mod}_{hub[2]}'}
             hub_df.rename(columns = rename_cols, inplace=True)
             df_list.append(hub_df)
 
@@ -153,13 +150,13 @@ class FFA_instance():
 
             tn, fp, fn, tp = confusion_matrix(day_df['occupied'], day_df['prediction'], labels=[0,1]).ravel()
             f1.append(f1_score(day_df['occupied'], day_df['prediction']))
-            acc.append(accuracy_score(day_df['occupied'], day_df['prediction']) )
+            acc.append(accuracy_score(day_df['occupied'], day_df['prediction']))
             self.results_by_day[day_str] = (tn, fp, fn, tp)
             tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
-            fpr = fp/(fp+tn) if fp+tn > 0 else 0.0
+            fpr = fp/(tn+fp) if tn+fp > 0 else 0.0
 
             tnr = tn/(tn+fp) if tn+fp > 0 else 0.0
-            fnr = fn/(fn+tp) if fn+tp > 0 else 0.0
+            fnr = fn/(tp+fn) if tp+fn > 0 else 0.0
 
             TPR.append(float(f'{tpr:.4}'))
             FPR.append(float(f'{fpr:.4}'))
@@ -179,7 +176,6 @@ def get_instances(H):
         'F1-Score': [], 'Accuracy': []
         }
 
-    # V = {'FPR_var': [], 'TPR_var': [], 'FNR_var': [], 'TNR_var': [], 'f1_var': [], 'acc_var': []}
     V = {
         'False Positive Rate': [], 'True Positive Rate': [],
         'False Negative Rate': [], 'True Negative Rate': [],
@@ -196,7 +192,6 @@ def get_instances(H):
         
         d['False Positive Rate'].append(inst.FPR)
         d['True Positive Rate'].append(inst.TPR)
-
         d['False Negative Rate'].append(inst.FNR)
         d['True Negative Rate'].append(inst.TNR)
         
@@ -206,12 +201,7 @@ def get_instances(H):
         d['Accuracy'].append(inst.accuracy)
         d['Name'].append(f'Run {inst.run}: {inst.run_modalities}')
 
-        # V['FPR_var'].append(inst.var_FPR)
-        # V['FNR_var'].append(inst.var_FNR)
-        # V['TPR_var'].append(inst.var_TPR)
-        # V['TNR_var'].append(inst.var_TNR)
-        # V['f1_var'].append(inst.var_f1)
-        # V['acc_var'].append(inst.var_accuracy)
+
         V['False Positive Rate'].append(inst.var_FPR)
         V['True Positive Rate'].append(inst.var_TPR)
         V['False Negative Rate'].append(inst.var_FNR)
@@ -219,10 +209,15 @@ def get_instances(H):
         V['F1-Score'].append(inst.var_f1)
         V['Accuracy'].append(inst.var_accuracy) 
 
+    N_runs = len(H.run_specifications)
+    N_days = len(H.days)
 
     SE = {}
     for v in V:
-        SE[v] = np.sqrt(np.sum(V[v])/len(V[v]))
+        print('var', v, np.min(V[v]), np.max(V[v]), np.mean(V[v]))
+        print('rate', v, np.min(d[v]), np.max(d[v]), np.mean(d[v]))
+        SE[v] = np.sqrt(np.mean(V[v])*(N_days/N_runs))/10
+    print(SE) 
 
 
     SE_df = pd.DataFrame(SE, index=['SE'])
@@ -245,14 +240,10 @@ if __name__=='__main__':
     run_level = args.level
 
     home_parameters = {'home': f'{H_num.lower()}_{color}'}
-    
     pg = PostgreSQL(home_parameters)
-
     H = Home(pg=pg, system=home_system, level=run_level)
 
-
     roc_df, SE = get_instances(H)
-  
     df2 = pd.DataFrame(roc_df['Inclusion'].to_list(), columns=H.hubs)
 
     df2.index = roc_df.index
@@ -261,17 +252,10 @@ if __name__=='__main__':
     df2.drop(columns=['Inclusion', 'Run'], inplace=True)
     dfwSE = df2.append(SE, ignore_index=False)
     dfwSE.index.rename('Run')
-    print(dfwSE)
-
-                    
-    # print(df2)
-    # get_metrics(df2)
-
-    
 
 
     # all_runs_df = pd.DataFrame.from_dict(roc_df)
     # all_runs_df.to_csv(f'/Users/maggie/Desktop/FFA_output/roc_df_{home_system}_{run_level}.csv')
 
     # var_df.to_csv(f'/Users/maggie/Desktop/FFA_output/varianvce_{home_system}_{run_level}.csv')
-    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/wSE_{home_system}_{run_level}.csv', index_label='Run')
+    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/{home_system}_{run_level}.csv', index_label='Run')
