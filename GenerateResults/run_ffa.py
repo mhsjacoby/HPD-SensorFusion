@@ -152,6 +152,7 @@ class FFA_instance():
             f1.append(f1_score(day_df['occupied'], day_df['prediction']))
             acc.append(accuracy_score(day_df['occupied'], day_df['prediction']))
             self.results_by_day[day_str] = (tn, fp, fn, tp)
+            
             tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
             fpr = fp/(tn+fp) if tn+fp > 0 else 0.0
 
