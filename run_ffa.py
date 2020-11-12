@@ -10,35 +10,59 @@ Import into Load_data_into_pstgres notebook or run stand alone (preferred).
 import os
 import sys
 import csv
+import json
 import argparse
 import itertools
 import numpy as np
 import pandas as pd
 from glob import glob
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 from functools import reduce
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 
 from my_functions import *
-
 from pg_functions import *
+
 
 
 
 
 class Home():
     
-    def __init__(self, pg, system, level):
+    def __init__(self, pg, system, level, threshold='0.8'):
         self.pg = pg
         self.system = system.lower().split('-')
         self.pg_system = pg.home
         self.level = level
         self.hubs = self.get_distinct_from_DB('hub')
-        self.days = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
+        self.days = self.get_days(threshold, system)
+        self.start_time, self.end_time = self.get_hours(system)
         self.run_specifications = self.get_FFA_output()
 
-        
+
+    def get_days(self, threshold, system):
+        all_days_db = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
+        days_above_file = os.path.join('/Users/maggie/Desktop/CompleteSummaries', f'all_days_above_{threshold}.json')
+        with open(days_above_file) as file:
+            fdata = json.load(file)
+        all_days_th = fdata[system]
+        days = sorted(list(set(all_days_db).intersection(all_days_th)))
+        print(f'Number of days to available above threshold {threshold}: {len(days)}')
+        return days
+
+    def get_hours(self, system):
+        hours_asleep_file = '/Users/maggie/Desktop/CompleteSummaries/hours_asleep.json'
+        with open(hours_asleep_file) as file:
+            fdata = json.load(file)
+        times = fdata[system]
+        start_time = datetime.strptime(times['start'], '%H:%M:%S').time()
+        end_time = datetime.strptime(times['end'], '%H:%M:%S').time()
+        print(f'Not calculating between the hours of {start_time} and {end_time}')
+        return start_time, end_time
+
+
+
     def get_distinct_from_DB(self, col):
         print(self.pg_system)
 
@@ -65,13 +89,12 @@ class Home():
     def get_FFA_output(self):
         spec_path = f'/Users/maggie/Documents/Github/HPD-Inference_and_Processing/SensorFusion/fracfact_output'
         num_hubs = len(self.hubs)
-        run_file = os.path.join(spec_path, f'{num_hubs}_hub_{self.level}.csv' )
+        run_file = os.path.join(spec_path, f'{num_hubs}_hub_{self.level}.csv')
 
         run_specifications = []
         with open(run_file) as FFA_output:
             for i, row in enumerate(csv.reader(FFA_output), 1):
                 run_specifications.append((i, row))
-        print(run_specifications)
         return run_specifications
 
 
@@ -109,7 +132,6 @@ class FFA_instance():
         run_mods = {}
         for x,y in zip(self.Home.hubs, self.spec):
             run_mods[x] = self.mod_dict[y]
-        print(run_mods)
         return run_mods
 
     
@@ -147,11 +169,13 @@ class FFA_instance():
         for day_str in sorted(days):
             day = datetime.strptime(day_str, '%Y-%m-%d').date()
             day_df = self.predictions.loc[self.predictions['day'] == day]
+            day_df = day_df.loc[~((day_df['hr_min_sec'] >= self.Home.start_time) & (day_df['hr_min_sec'] < self.Home.end_time))]
 
             tn, fp, fn, tp = confusion_matrix(day_df['occupied'], day_df['prediction'], labels=[0,1]).ravel()
             f1.append(f1_score(day_df['occupied'], day_df['prediction']))
             acc.append(accuracy_score(day_df['occupied'], day_df['prediction']))
             self.results_by_day[day_str] = (tn, fp, fn, tp)
+
             tpr = tp/(tp+fn) if tp+fn > 0 else 0.0
             fpr = fp/(tn+fp) if tn+fp > 0 else 0.0
 
@@ -214,11 +238,7 @@ def get_instances(H):
 
     SE = {}
     for v in V:
-        print('var', v, np.min(V[v]), np.max(V[v]), np.mean(V[v]))
-        print('rate', v, np.min(d[v]), np.max(d[v]), np.mean(d[v]))
         SE[v] = np.sqrt(np.mean(V[v])*(N_days/N_runs))/10
-    print(SE) 
-
 
     SE_df = pd.DataFrame(SE, index=['SE'])
     roc_df = pd.DataFrame(d)
@@ -227,10 +247,12 @@ def get_instances(H):
 
 
 
+
+
+
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="Description")
 
-    # parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     parser.add_argument('-system', '--system', type=str)
     parser.add_argument('-level', '--level', type=str, default='full')
     args = parser.parse_args()
@@ -241,6 +263,7 @@ if __name__=='__main__':
 
     home_parameters = {'home': f'{H_num.lower()}_{color}'}
     pg = PostgreSQL(home_parameters)
+
     H = Home(pg=pg, system=home_system, level=run_level)
 
     roc_df, SE = get_instances(H)
@@ -253,9 +276,4 @@ if __name__=='__main__':
     dfwSE = df2.append(SE, ignore_index=False)
     dfwSE.index.rename('Run')
 
-
-    # all_runs_df = pd.DataFrame.from_dict(roc_df)
-    # all_runs_df.to_csv(f'/Users/maggie/Desktop/FFA_output/roc_df_{home_system}_{run_level}.csv')
-
-    # var_df.to_csv(f'/Users/maggie/Desktop/FFA_output/varianvce_{home_system}_{run_level}.csv')
-    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/{home_system}_{run_level}.csv', index_label='Run')
+    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/{home_system}_{run_level}_modified.csv', index_label='Run')

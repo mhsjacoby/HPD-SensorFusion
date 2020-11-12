@@ -44,14 +44,9 @@ def summarize_df(df, name='before_fill'):
     fname = os.path.join(root_dir, 'Summaries', f'{home_system}_inf_{name}.txt')
     with open(fname, 'w+') as writer:
         for col in [ 'audio',  'env',  'img',  'occupied']:
-            # print(col)
-            # print(df[col].value_counts())
             print(df[col].value_counts(normalize=True))
             writer.write(f'\n{col}\n {df[col].value_counts(normalize=True)}')
             writer.write(f'\nnan: {df[col].isnull().sum()/len(df[col])}\n')
-
-            # print(f'{col}\n {df[col].value_counts()/len(df[col]):.2}')
-            # print(f'nan: {df[col].isnull().sum()/len(df[col]):.2}\n')
     writer.close()
     print(f'{fname} : Write Sucessful!')
 
@@ -66,8 +61,6 @@ def fill_df(df):
 
 
 def create_pg(df, drop=False):
-    # print(df)
-    # table_name = f'{H_num.lower()}_{color}_inference'
     table_name = f'{home_parameters["home"]}_inf'
 
     if drop:

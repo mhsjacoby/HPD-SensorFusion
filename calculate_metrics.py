@@ -105,7 +105,7 @@ if __name__ == '__main__':
     
 
     home_system = os.path.basename(file_path.strip('/')).split('_')[0]
-    view_set = os.path.basename(file_path.strip('/')).split('_')[-1].strip('.csv')
+    view_set = os.path.basename(file_path.strip('/')).split('_')[1].strip('.csv')
     root_dir = os.path.split(file_path.rstrip('/'))[0]
 
     ffa_output = pd.read_csv(file_path)
@@ -127,5 +127,5 @@ if __name__ == '__main__':
     avg = avg_effect(metric_df)
     full_wavg = pd.concat([avg, full_effects])
     Full_metrics = pd.concat([full_wavg, SE])
-    print(Full_metrics)
-    Full_metrics.to_csv(os.path.join(root_dir, f'{home_system}_allEffects_{view_set}.csv'))
+    # print(Full_metrics)
+    Full_metrics.to_csv(os.path.join(root_dir, f'{home_system}_allEffects_{view_set}_modifiedHrs.csv'))
