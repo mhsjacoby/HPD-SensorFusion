@@ -19,7 +19,7 @@ from glob import glob
 from datetime import datetime, timedelta, time
 
 from functools import reduce
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 from my_functions import *
 from pg_functions import *
@@ -115,11 +115,11 @@ class FFA_instance():
         
         self.TPR, self.FPR = np.mean(self.rate_results['TPR']), np.mean(self.rate_results['FPR'])
         self.TNR, self.FNR = np.mean(self.rate_results['TNR']), np.mean(self.rate_results['FNR']) 
-        self.f1, self.accuracy = np.mean(self.rate_results['f1']), np.mean(self.rate_results['accuracy'])
+        self.accuracy = np.mean(self.rate_results['accuracy'])
 
         self.var_TPR, self.var_FPR = np.var(self.rate_results['TPR']), np.var(self.rate_results['FPR'])
         self.var_TNR, self.var_FNR = np.var(self.rate_results['TNR']), np.var(self.rate_results['FNR']) 
-        self.var_f1, self.var_accuracy = np.var(self.rate_results['f1']), np.var(self.rate_results['accuracy'])
+        self.var_accuracy = np.var(self.rate_results['accuracy'])
         
 
     def check_spec(self):
@@ -164,7 +164,7 @@ class FFA_instance():
         
 
     def test_days(self, days):
-        TPR, FPR, TNR, FNR, f1, acc = [], [], [], [], [], []
+        TPR, FPR, TNR, FNR, acc = [], [], [], [], []
         
         for day_str in sorted(days):
             day = datetime.strptime(day_str, '%Y-%m-%d').date()
@@ -172,7 +172,7 @@ class FFA_instance():
             day_df = day_df.loc[~((day_df['hr_min_sec'] >= self.Home.start_time) & (day_df['hr_min_sec'] < self.Home.end_time))]
 
             tn, fp, fn, tp = confusion_matrix(day_df['occupied'], day_df['prediction'], labels=[0,1]).ravel()
-            f1.append(f1_score(day_df['occupied'], day_df['prediction']))
+            # f1.append(f1_score(day_df['occupied'], day_df['prediction']))
             acc.append(accuracy_score(day_df['occupied'], day_df['prediction']))
             self.results_by_day[day_str] = (tn, fp, fn, tp)
 
@@ -188,7 +188,7 @@ class FFA_instance():
             TNR.append(float(f'{tnr:.4}'))
             FNR.append(float(f'{fnr:.4}'))
 
-        return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}
+        return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'accuracy': acc}
 
 
 def get_instances(H):
@@ -197,13 +197,13 @@ def get_instances(H):
         'Run': [], 'Inclusion': [], 'Name': [],
         'False Positive Rate': [], 'True Positive Rate': [],
         'False Negative Rate': [], 'True Negative Rate': [],
-        'F1-Score': [], 'Accuracy': []
+        'Accuracy': []
         }
 
     V = {
         'False Positive Rate': [], 'True Positive Rate': [],
         'False Negative Rate': [], 'True Negative Rate': [],
-        'F1-Score': [], 'Accuracy': []
+        'Accuracy': []
         }
 
 
@@ -221,7 +221,6 @@ def get_instances(H):
         
         d['Run'].append(inst.run)
         d['Inclusion'].append(inst.spec)
-        d['F1-Score'].append(inst.f1)
         d['Accuracy'].append(inst.accuracy)
         d['Name'].append(f'Run {inst.run}: {inst.run_modalities}')
 
@@ -230,7 +229,6 @@ def get_instances(H):
         V['True Positive Rate'].append(inst.var_TPR)
         V['False Negative Rate'].append(inst.var_FNR)
         V['True Negative Rate'].append(inst.var_TNR)
-        V['F1-Score'].append(inst.var_f1)
         V['Accuracy'].append(inst.var_accuracy) 
 
     N_runs = len(H.run_specifications)

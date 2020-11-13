@@ -104,33 +104,33 @@ class PostgreSQL(Structs):
                 print('>Database connection closed.')  
 
 
-    # def create_inf_table(self, table_name=None, schema="public"):
-    def create_inf_table(self, table_name=None, schema="test"):
-
+    
+    # def create_inf_table(self, table_name=None, schema="test"):
+    def create_inf_table(self, table_name=None, schema="public"):
         print(f'Creating inference table: {table_name}')
         # self.inf_table = f'{schema}.{table_name}'        
         ex = self.inference_table.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} created sucessfully!')
 
-    def create_prob_table(self, table_name=None, schema="test"):
-    # def create_prob_table(self, table_name=None, schema="public"):
+    # def create_prob_table(self, table_name=None, schema="test"):
+    def create_prob_table(self, table_name=None, schema="public"):
         print(f'Creating probability table: {table_name}')
         # self.prob_table = f'{schema}.{table_name}'        
         ex = self.probability_table.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} created sucessfully!')
 
         
-    # def drop_table(self, table_name, schema="public"):
-    def drop_table(self, table_name, schema="test"):
-
+    
+    # def drop_table(self, table_name, schema="test"):
+    def drop_table(self, table_name, schema="public"):
         print(f'Dropping table: {table_name}.')
         ex = self.drop.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} sucessfully dropped.')
     
     
-    # def insert_table(self, df, table, schema="public"):
-    def insert_table(self, df, table, schema="test"):
 
+    # def insert_table(self, df, table, schema="test"):
+    def insert_table(self, df, table, schema="public"):
         conn = self.connect()
         table = f'{schema}.{table}'
         print(table)
