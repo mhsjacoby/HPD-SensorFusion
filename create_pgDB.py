@@ -28,29 +28,22 @@ img_ffill_limit = 1
 img_bfill_limit = 1
 
 
-def read_data():
-    df = prepare_data_for_DB(root_dir, db_type=db_type)
-    # summarize_df(df)
-    filled_df = fill_df(df)
-    filled_df.fillna(value=1, inplace=True)
-    return filled_df
-
-def summarize_df(df, name='before_fill'):
-    fname = os.path.join(root_dir, 'Summaries', f'{home_system}_inf_{name}.txt')
-    with open(fname, 'w+') as writer:
-        for col in [ 'audio',  'env',  'img',  'occupied']:
-            print(df[col].value_counts(normalize=True))
-            writer.write(f'\n{col}\n {df[col].value_counts(normalize=True)}')
-            writer.write(f'\nnan: {df[col].isnull().sum()/len(df[col])}\n')
-    writer.close()
-    print(f'{fname} : Write Sucessful!')
-
+# def read_data():
+#     df = prepare_data_for_DB(root_dir, db_type=db_type)
+#     # summarize_df(df)
+#     filled_df = fill_df(df)
+#     # filled_df.fillna(value=1, inplace=True)
+#     return filled_df
+    
 
 def fill_df(df):
     filled_df = df.copy(deep=True)
-    filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=img_ffill_limit*360)
-    filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=img_bfill_limit*360)
-    filled_df = filled_df.fillna(0)
+    # filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=img_ffill_limit*360)
+    # filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=img_bfill_limit*360)
+    filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=5)
+    filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=5)
+
+    # filled_df = filled_df.fillna(0)
     return(filled_df)
 
 
@@ -64,7 +57,7 @@ def create_pg(df, db_type, drop=False):
     if db_type == 'inf':
         pg.create_inf_table(table_name=table_name)
 
-    if db_type == 'prob':
+    elif db_type == 'prob':
         pg.create_prob_table(table_name=table_name)
 
     pg.insert_table(df=df, table=table_name)
@@ -110,11 +103,12 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
                 if db_type == 'inf':
                     day_dfs.append(pd.read_csv(day, index_col='timestamp', usecols=['timestamp', 'occupied']))
 
-
             mod_df = pd.concat(day_dfs)
+
             if mod == 'env_inf' and db_type == 'prob':
                 cols = [col.split('_')[1] for col in mod_df.columns]
                 mod_df.columns = cols
+
             else: 
                 mod_df.columns = [mod.split('_')[0]]
 
@@ -132,6 +126,7 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
         all_hubs.append(hub_df) 
         
     df = pd.concat(all_hubs)
+    print('********** df before writing csv **********')
     print(df)
 
     df['date'] = df.index.get_level_values(0)
@@ -148,8 +143,6 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
     df.to_csv(os.path.join(save_path, f'{home_system}_full_{db_type}.csv'))
     
     return(df)
-
-
 
 
 if __name__ == '__main__':
@@ -171,17 +164,25 @@ if __name__ == '__main__':
     db_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_full_{db_type}.csv')
     if not os.path.isfile(db_file):
         print(f'Full inference not found. Generating CSV for: {db_file}  ....')
-        final_df = read_data()
+        # final_df = read_data()
+        final_df = prepare_data_for_DB(root_dir, db_type=db_type)
+        final_df = fill_df(final_df)
+
     else:
         print(f'Reading df from: {db_file}')
         final_df = pd.read_csv(db_file)
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
-
+    
     not_fill_cols = ['entry_id', 'day', 'hr_min_sec', 'hub', 'occupied']
     cols = [col for col in final_df.columns if col not in not_fill_cols]
+
     for col in cols:
-        final_df[col] = final_df[col].fillna(1.0).astype(int)
-    
+        if db_type == 'inf':
+            final_df[col] = final_df[col].fillna(1).astype(int)
+        elif db_type == 'prob':
+            final_df[col] = final_df[col].fillna(1.0)
+    print('********** final df to enter into database **********')
+    print(final_df)
 
     home_parameters = {'home': home_system.lower().replace('-', '_')}
     pg = PostgreSQL(home_parameters)

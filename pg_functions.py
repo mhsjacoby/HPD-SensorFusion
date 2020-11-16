@@ -46,12 +46,12 @@ class Structs():
                 day date NOT NULL,
                 hr_min_sec time without time zone NOT NULL,
                 hub character(3) NOT NULL,
-                img real,
-                audio real,
-                temp real,
-                rh real,
-                light real,
-                co2eq real,
+                img numeric(4,3),
+                audio numeric(4,3),
+                temp numeric(4,3),
+                rh numeric(4,3),
+                light numeric(4,3),
+                co2eq numeric(4,3),
                 occupied integer NOT NULL
             )
             """

@@ -37,6 +37,7 @@ def write_occupancy_df(path):
                 line_count += 1
             exit_times.append(dt_day)
         occupants[occupant_name] = ishome
+
     first, last = sorted(enter_times)[0], sorted(exit_times)[-1]
 
     occ_range = pd.date_range(start=first, end=last, freq='10S')

@@ -54,62 +54,62 @@ def cos_win(min_win=5, max_win=30, list_len=8640):
 
 
 
-# ==== Usage ====
-import pandas as pd
-import argparse
-import os
-import matplotlib.pyplot as plt
-parser = argparse.ArgumentParser(description="Description")
-parser.add_argument('-path','--path', default='AA', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
-parser.add_argument('-save_location', '--save', default='', type=str, help='location to store files (if different from path')
-# parser.add_argument('-hub', '--hub', default='', type=str, help='if only one hub... ')
-parser.add_argument('-hub', '--hub', default="", nargs="+", type=str, help='if only one hub... ') # Example: python time_window.py -hub BS2 BS3
-parser.add_argument('-start_index','--start_date_index', default=0, type=int, help='Processing START Date index')
+# # ==== Usage ====
+# import pandas as pd
+# import argparse
+# import os
+# import matplotlib.pyplot as plt
+# parser = argparse.ArgumentParser(description="Description")
+# parser.add_argument('-path','--path', default='AA', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
+# parser.add_argument('-save_location', '--save', default='', type=str, help='location to store files (if different from path')
+# # parser.add_argument('-hub', '--hub', default='', type=str, help='if only one hub... ')
+# parser.add_argument('-hub', '--hub', default="", nargs="+", type=str, help='if only one hub... ') # Example: python time_window.py -hub BS2 BS3
+# parser.add_argument('-start_index','--start_date_index', default=0, type=int, help='Processing START Date index')
 
 
-args = parser.parse_args()
-path = args.path
-save_path = args.save if len(args.save) > 0 else path
-home_system = os.path.basename(path.strip('/'))
-H = home_system.split('-')
-H_num, color = H[0], H[1][0].upper()
-hubs = args.hub
-# hubs = [args.hub] if len(args.hub) > 0 else sorted(mylistdir(path, bit=f'{color}S', end=False))
-print(f'List of Hubs: {hubs}')
+# args = parser.parse_args()
+# path = args.path
+# save_path = args.save if len(args.save) > 0 else path
+# home_system = os.path.basename(path.strip('/'))
+# H = home_system.split('-')
+# H_num, color = H[0], H[1][0].upper()
+# hubs = args.hub
+# # hubs = [args.hub] if len(args.hub) > 0 else sorted(mylistdir(path, bit=f'{color}S', end=False))
+# print(f'List of Hubs: {hubs}')
 
-hub = hubs[0]
-read_root_path = os.path.join(path, "Inference_DB", hub, 'img_inf', 'processed','2019-10-09.csv')
+# hub = hubs[0]
+# read_root_path = os.path.join(path, "Inference_DB", hub, 'img_inf', 'processed','2019-10-09.csv')
 
-# path = 'C:/Users/Sin Yong Tan/Desktop/to_maggie/H6-black/Inference_DB/BS2/img_inf/processed/2019-10-09.csv'
-data = pd.read_csv(read_root_path, index_col=0)
+# # path = 'C:/Users/Sin Yong Tan/Desktop/to_maggie/H6-black/Inference_DB/BS2/img_inf/processed/2019-10-09.csv'
+# data = pd.read_csv(read_root_path, index_col=0)
 
-# For Testing the window
-data["occupied"].iloc[:] = 0
+# # For Testing the window
+# data["occupied"].iloc[:] = 0
 
-data["occupied"].iloc[15] = 1
-data["occupied"].iloc[4320] = 1
-data["occupied"].iloc[-15] = 1
+# data["occupied"].iloc[15] = 1
+# data["occupied"].iloc[4320] = 1
+# data["occupied"].iloc[-15] = 1
 
-ones_idx = np.argwhere(data["occupied"].values == 1) # check output
-ones_idx = ones_idx.reshape((len(ones_idx),))
+# ones_idx = np.argwhere(data["occupied"].values == 1) # check output
+# ones_idx = ones_idx.reshape((len(ones_idx),))
 
-# time_win = quad_win(5, 10, len(data))
-# time_win = V_win(5, 10, len(data))
-time_win = cos_win(5, 10, len(data))
+# # time_win = quad_win(5, 10, len(data))
+# # time_win = V_win(5, 10, len(data))
+# time_win = cos_win(5, 10, len(data))
 
-# print("Length",len(time_win))
-# print("First",time_win[0])
-# print("Last",time_win[-1])
-# print("Min",min(time_win))
-# print("Max",max(time_win))
-plt.plot(time_win)
+# # print("Length",len(time_win))
+# # print("First",time_win[0])
+# # print("Last",time_win[-1])
+# # print("Min",min(time_win))
+# # print("Max",max(time_win))
+# plt.plot(time_win)
 
 
-for idx in ones_idx:
-	# Timewindow ffill
-	data["occupied"].iloc[idx:idx+time_win[idx]+1] = 1
-	# Timewindow bfill
-	data["occupied"].iloc[idx-time_win[idx]:idx] = 1
+# for idx in ones_idx:
+# 	# Timewindow ffill
+# 	data["occupied"].iloc[idx:idx+time_win[idx]+1] = 1
+# 	# Timewindow bfill
+# 	data["occupied"].iloc[idx-time_win[idx]:idx] = 1
 
 
 

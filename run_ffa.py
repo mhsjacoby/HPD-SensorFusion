@@ -46,6 +46,7 @@ class Home():
         days_above_file = os.path.join('/Users/maggie/Desktop/CompleteSummaries', f'all_days_above_{threshold}.json')
         with open(days_above_file) as file:
             fdata = json.load(file)
+        
         all_days_th = fdata[system]
         days = sorted(list(set(all_days_db).intersection(all_days_th)))
         print(f'Number of days to available above threshold {threshold}: {len(days)}')
@@ -100,13 +101,14 @@ class Home():
 
 
 class FFA_instance():
-    mod_dict = {'-1': 'audio', '1': 'img'}
+    # mod_dict = {'-1': 'audio', '1': 'img'}
     
-    def __init__(self, run, Home):
+    def __init__(self, run, Home, comparison):
         self.Home = Home
+        self.mod_dict = self.define_comparison(comparison)
         self.run  = run[0]
         self.spec = run[1]
-        self.check_spec()
+        # self.check_spec()
         self.run_modalities = self.get_hub_modalities()
         self.df = self.create_df()
         self.predictions = self.get_predictions()
@@ -120,37 +122,56 @@ class FFA_instance():
         self.var_TPR, self.var_FPR = np.var(self.rate_results['TPR']), np.var(self.rate_results['FPR'])
         self.var_TNR, self.var_FNR = np.var(self.rate_results['TNR']), np.var(self.rate_results['FNR']) 
         self.var_accuracy = np.var(self.rate_results['accuracy'])
+
+    def define_comparison(self, comparison):
+        if comparison == 'image_audio':
+            mod_dict = {'-1': 'audio', '1': 'img'}
+        elif comparison == 'audio_none':
+            mod_dict = {'-1': 'None', '1': 'audio'}
+        elif comparison == 'image_none':
+            mod_dict = {'-1': 'None', '1': 'image'}
+        return mod_dict
         
 
-    def check_spec(self):
-        if len(self.spec) != len(self.Home.hubs):
-            print(f'Incorrect run specification. {len(self.Home.hubs)} hubs and {len(self.spec)} spots in FFA.')
-        else:
-            print(f'All good. Ready to run number {self.run}: {self.spec}.')   
-        
     def get_hub_modalities(self):
         run_mods = {}
         for x,y in zip(self.Home.hubs, self.spec):
             run_mods[x] = self.mod_dict[y]
         return run_mods
 
+
+    def get_null_prediction(self):
+        hub = self.Home.hubs[0]
+        mod = self.mod_dict['1']
+        null_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
+        null_df.drop(columns=['hub', mod], inplace=True)
+        null_df['null'] = 1
+        return null_df
     
     def create_df(self):
         df_list = []
+        print(self.run_modalities)
         for hub in self.run_modalities:
             mod = self.run_modalities[hub]
             print(f'hub: {hub}, modality: {mod}')
+            if mod == 'None':
+                continue
             hub_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
             hub_df.drop(columns=['hub'], inplace=True)
             rename_cols = {mod:f'{mod}_{hub[2]}'}
             hub_df.rename(columns = rename_cols, inplace=True)
             df_list.append(hub_df)
-
-        df_merged = reduce(lambda  left, right: pd.merge(left, right, on=['day', 'hr_min_sec', 'occupied'], how='outer'), df_list)
         
+        if len(df_list) == 0:
+            df_merged = self.get_null_prediction()
+
+        else:
+            df_merged = reduce(lambda left, right: pd.merge(left, right, on=['day', 'hr_min_sec', 'occupied'], how='outer'), df_list)
+
+        print(df_merged.columns)
+
         col = df_merged.pop('occupied')
         df_merged.insert(len(df_merged.columns), col.name, col)
-        
         return df_merged
 
     
@@ -191,7 +212,7 @@ class FFA_instance():
         return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'accuracy': acc}
 
 
-def get_instances(H):
+def get_instances(H, comparison):
 
     d = {
         'Run': [], 'Inclusion': [], 'Name': [],
@@ -210,7 +231,7 @@ def get_instances(H):
     all_instances = {}
 
     for x in H.run_specifications:
-        inst = FFA_instance(x, H)
+        inst = FFA_instance(x, H, comparison)
         
         all_instances[inst.run] = inst
         
@@ -253,18 +274,20 @@ if __name__=='__main__':
 
     parser.add_argument('-system', '--system', type=str)
     parser.add_argument('-level', '--level', type=str, default='full')
+    parser.add_argument('-compare', '--compare', type=str, default='image_audio')
     args = parser.parse_args()
 
     home_system = args.system
     H_num, color = home_system.split('-')
     run_level = args.level
+    comparison = args.compare
 
     home_parameters = {'home': f'{H_num.lower()}_{color}'}
     pg = PostgreSQL(home_parameters)
 
     H = Home(pg=pg, system=home_system, level=run_level)
 
-    roc_df, SE = get_instances(H)
+    roc_df, SE = get_instances(H, comparison)
     df2 = pd.DataFrame(roc_df['Inclusion'].to_list(), columns=H.hubs)
 
     df2.index = roc_df.index
