@@ -105,7 +105,8 @@ class Home():
     def test_days(self, days):
         hours = [x for x in range(0,24)]
         results_by_hr = {}
-        print(len(days))
+        for day in days:
+            print(day)
         for hr in hours:
             TPR, FPR, TNR, FNR, acc = [], [], [], [], []
 
