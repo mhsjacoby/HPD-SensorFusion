@@ -8,7 +8,7 @@ Functions for interacting with a PostgreSQL database from python
 """
 
 
-
+import sys
 import psycopg2
 import psycopg2.extras as extras
 
@@ -62,12 +62,11 @@ class Structs():
 
 
 class PostgreSQL(Structs):
-    def __init__(self, home_parameters, connection_params=connection_parameters,):
+    def __init__(self, home_parameters, connection_params=connection_parameters, schema="nofill"):
         self.P = connection_params
         self.home = home_parameters["home"]
+        self.schema = schema
         Structs.__init__(self)
-        # self.inf_table=None
-        # self.prob_table=None
 
 
     def connect(self):
@@ -105,35 +104,30 @@ class PostgreSQL(Structs):
 
 
     
-    # def create_inf_table(self, table_name=None, schema="test"):
-    def create_inf_table(self, table_name=None, schema="public"):
-        print(f'Creating inference table: {table_name}')
-        # self.inf_table = f'{schema}.{table_name}'        
+    def create_inf_table(self, table_name=None):
+        schema = self.schema
+        print(f'Creating inference table: {table_name}')      
         ex = self.inference_table.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} created sucessfully!')
 
-    # def create_prob_table(self, table_name=None, schema="test"):
-    def create_prob_table(self, table_name=None, schema="public"):
-        print(f'Creating probability table: {table_name}')
-        # self.prob_table = f'{schema}.{table_name}'        
+    def create_prob_table(self, table_name=None):
+        schema = self.schema
+        print(f'Creating probability table: {table_name}')    
         ex = self.probability_table.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} created sucessfully!')
 
         
-    
-    # def drop_table(self, table_name, schema="test"):
-    def drop_table(self, table_name, schema="public"):
+    def drop_table(self, table_name):
+        schema = self.schema
         print(f'Dropping table: {table_name}.')
         ex = self.drop.replace("tab", table_name).replace("curr_schema", schema)
         self.PG_connect(ex, f'Table {table_name} sucessfully dropped.')
-    
-    
 
-    # def insert_table(self, df, table, schema="test"):
-    def insert_table(self, df, table, schema="public"):
+    
+    def insert_table(self, df, table):
+        schema = self.schema
         conn = self.connect()
         table = f'{schema}.{table}'
-        print(table)
         try:
             tuples = [tuple(x) for x in df.to_numpy()]
             cols = ",".join(list(df.columns))

@@ -24,16 +24,8 @@ from my_functions import *
 from write_occupancy import *
 from pg_functions import *
 
-img_ffill_limit = 1
-img_bfill_limit = 1
-
-
-# def read_data():
-#     df = prepare_data_for_DB(root_dir, db_type=db_type)
-#     # summarize_df(df)
-#     filled_df = fill_df(df)
-#     # filled_df.fillna(value=1, inplace=True)
-#     return filled_df
+# img_ffill_limit = 1
+# img_bfill_limit = 1
     
 
 def fill_df(df):
@@ -42,8 +34,6 @@ def fill_df(df):
     # filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=img_bfill_limit*360)
     filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=5)
     filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=5)
-
-    # filled_df = filled_df.fillna(0)
     return(filled_df)
 
 
@@ -150,11 +140,14 @@ if __name__ == '__main__':
 
     parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     parser.add_argument('-db_type','--db_type', default='inf', type=str, help='Type of database to create (inference, probability, ...')
+    # parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
     args = parser.parse_args()
     root_dir = args.path
     db_type = args.db_type
+    # schema = args.schema
 
     home_system = os.path.basename(root_dir.strip('/'))
+    # print(f'Using schema: {schema}')
 
     occ_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_occupancy.csv')
     if not os.path.isfile(occ_file):
@@ -164,27 +157,28 @@ if __name__ == '__main__':
     db_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_full_{db_type}.csv')
     if not os.path.isfile(db_file):
         print(f'Full inference not found. Generating CSV for: {db_file}  ....')
-        # final_df = read_data()
         final_df = prepare_data_for_DB(root_dir, db_type=db_type)
-        final_df = fill_df(final_df)
-
+        
     else:
         print(f'Reading df from: {db_file}')
         final_df = pd.read_csv(db_file)
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
     
+    # final_df = fill_df(final_df)
     not_fill_cols = ['entry_id', 'day', 'hr_min_sec', 'hub', 'occupied']
     cols = [col for col in final_df.columns if col not in not_fill_cols]
 
     for col in cols:
         if db_type == 'inf':
-            final_df[col] = final_df[col].fillna(1).astype(int)
+            # final_df[col] = final_df[col].astype(int)
+
+            final_df[col] = final_df[col].fillna(-1).astype(int)
         elif db_type == 'prob':
-            final_df[col] = final_df[col].fillna(1.0)
+            final_df[col] = final_df[col].fillna(-1.0)
     print('********** final df to enter into database **********')
     print(final_df)
 
     home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters)
+    pg = PostgreSQL(home_parameters)#, schema)
     create_pg(final_df, db_type, drop=True)
 

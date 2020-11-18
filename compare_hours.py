@@ -47,6 +47,7 @@ class Home():
             fdata = json.load(file)
         all_days_th = fdata[system]
         days = sorted(list(set(all_days_db).intersection(all_days_th)))
+        print(days)
         return days
 
 
@@ -132,6 +133,13 @@ class Home():
 
                 TNR.append(float(f'{tnr:.4}'))
                 FNR.append(float(f'{fnr:.4}'))
+
+                # TPR.append(tp)
+                # FPR.append(fp)
+
+                # TNR.append(tn)
+                # FNR.append(fn)
+
 
             TPR, FPR, TNR, FNR, acc = np.mean(TPR), np.mean(FPR), np.mean(TNR), np.mean(FNR), np.mean(acc) 
             results_by_hr[hr] = {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'accuracy': acc}

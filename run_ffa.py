@@ -117,7 +117,7 @@ class FFA_instance():
         
         self.TPR, self.FPR = np.mean(self.rate_results['TPR']), np.mean(self.rate_results['FPR'])
         self.TNR, self.FNR = np.mean(self.rate_results['TNR']), np.mean(self.rate_results['FNR']) 
-       self.f1, self.accuracy = np.mean(self.rate_results['f1']), np.mean(self.rate_results['accuracy'])
+        self.f1, self.accuracy = np.mean(self.rate_results['f1']), np.mean(self.rate_results['accuracy'])
 
         self.var_TPR, self.var_FPR = np.var(self.rate_results['TPR']), np.var(self.rate_results['FPR'])
         self.var_TNR, self.var_FNR = np.var(self.rate_results['TNR']), np.var(self.rate_results['FNR']) 
@@ -129,7 +129,7 @@ class FFA_instance():
         elif comparison == 'audio_none':
             mod_dict = {'-1': 'None', '1': 'audio'}
         elif comparison == 'image_none':
-            mod_dict = {'-1': 'None', '1': 'image'}
+            mod_dict = {'-1': 'None', '1': 'img'}
         return mod_dict
         
 
@@ -143,6 +143,7 @@ class FFA_instance():
     def get_null_prediction(self):
         hub = self.Home.hubs[0]
         mod = self.mod_dict['1']
+        print(hub, mod)
         null_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
         null_df.drop(columns=['hub', mod], inplace=True)
         null_df['null'] = 1
@@ -209,7 +210,7 @@ class FFA_instance():
             TNR.append(float(f'{tnr:.4}'))
             FNR.append(float(f'{fnr:.4}'))
 
-        return {return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}v
+        return {'TPR': TPR, 'FPR': FPR, 'TNR': TNR, 'FNR': FNR, 'f1': f1, 'accuracy': acc}
 
 
 def get_instances(H, comparison):
@@ -283,6 +284,7 @@ if __name__=='__main__':
     H_num, color = home_system.split('-')
     run_level = args.level
     comparison = args.compare
+    comp = comparison.split('_')
 
     home_parameters = {'home': f'{H_num.lower()}_{color}'}
     pg = PostgreSQL(home_parameters)
@@ -299,4 +301,5 @@ if __name__=='__main__':
     dfwSE = df2.append(SE, ignore_index=False)
     dfwSE.index.rename('Run')
 
-    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/{home_system}_{run_level}_modified.csv', index_label='Run')
+    
+    dfwSE.to_csv(f'/Users/maggie/Desktop/FFA_output/{home_system}_{run_level}_{comp[0]}-{comp[1]}.csv', index_label='Run')
