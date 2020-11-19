@@ -49,7 +49,7 @@ def final_fill(df):
 def get_forward_pred(data):
     df = data.copy()
 
-    time_window = cos_win(min_win=.25, max_win=6, df_len=len(df))
+    time_window = cos_win(min_win=.25, max_win=fill_limit, df_len=len(df))
     # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
 
     cols = ['audio', 'img']
@@ -191,14 +191,16 @@ if __name__ == '__main__':
 
     parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     parser.add_argument('-db_type','--db_type', default='inf', type=str, help='Type of database to create (inference, probability, ...')
-    # parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
+    parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
+    parser.add_argument('-fill_limit', '--fill_limit', default=2, type=int)
     args = parser.parse_args()
     root_dir = args.path
     db_type = args.db_type
-    # schema = args.schema
+    schema = args.schema
+    fill_limit = args.fill_limit
 
     home_system = os.path.basename(root_dir.strip('/'))
-    # print(f'Using schema: {schema}')
+    print(f'Using schema: {schema}. Fill limit: {fill_limit}')
 
     occ_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_occupancy.csv')
     if not os.path.isfile(occ_file):
@@ -216,10 +218,8 @@ if __name__ == '__main__':
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
     
     final_df = final_fill(final_df)
-    # final_df = fill_df(final_df)
-
 
     home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters)#, schema)
+    pg = PostgreSQL(home_parameters, schema=schema)
     create_pg(final_df, db_type, drop=False)
 

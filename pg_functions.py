@@ -62,10 +62,14 @@ class Structs():
 
 
 class PostgreSQL(Structs):
-    def __init__(self, home_parameters, connection_params=connection_parameters, schema="sixhourfill"):
+    def __init__(self, home_parameters, connection_params=connection_parameters, schema="public"):
         self.P = connection_params
         self.home = home_parameters["home"]
         self.schema = schema
+        print(f'PG Schema: {self.schema}')
+        # print(len(self.schema))
+        # print(type(self.schema))
+
         Structs.__init__(self)
 
 
