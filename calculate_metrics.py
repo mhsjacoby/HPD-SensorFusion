@@ -21,6 +21,16 @@ from glob import glob
 from my_functions import *
 
 
+from my_functions import *
+from pg_functions import *
+
+# from openpyxl import Workbook
+# from openpyxl.utils.dataframe import dataframe_to_rows
+# from openpyxl.formatting.rule import DataBarRule
+# from openpyxl.styles.colors import Color
+
+
+
 def subset_df(df):
     df.index = df['Run']
     df.drop(columns=['Run'], inplace=True)
@@ -83,6 +93,13 @@ def get_interactions(hub_df, level=2):
 
 
 
+
+
+
+
+
+
+
 def avg_effect(df):
     avg_dict = {}
     div = len(df)
@@ -97,13 +114,13 @@ def avg_effect(df):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Description")
+    # parser = argparse.ArgumentParser(description="Description")
 
-    parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
-    args = parser.parse_args()
-    file_path = args.path
+    # parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
+    # args = parser.parse_args()
+    # file_path = args.path
     
-
+    file_path =sys.argv[1]
     home_system = os.path.basename(file_path.strip('/')).split('_')[0]
     view_set = os.path.basename(file_path.strip('/')).split('_')[1].strip('.csv')
     run_comparison = os.path.basename(file_path.strip('/')).split('_')[-1].strip('.csv')
@@ -129,4 +146,4 @@ if __name__ == '__main__':
     full_wavg = pd.concat([avg, full_effects])
     Full_metrics = pd.concat([full_wavg, SE])
     # print(Full_metrics)
-    Full_metrics.to_csv(os.path.join(root_dir, f'{home_system}_allEffects_{view_set}_{run_comparison}.csv'))
+    Full_metrics.to_csv(os.path.join('~/Desktop/FFA_output/V5_FFA_runs', f'{home_system}_{run_comparison}.csv'))

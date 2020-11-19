@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from datetime import datetime, timedelta
+import time
 
 from my_functions import *
 from write_occupancy import *
@@ -28,14 +29,64 @@ from pg_functions import *
 # img_bfill_limit = 1
     
 
-def fill_df(df):
-    filled_df = df.copy(deep=True)
-    # filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=img_ffill_limit*360)
-    # filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=img_bfill_limit*360)
-    filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=5)
-    filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=5)
-    return(filled_df)
+def final_fill(df):
+    
+    dfs = []
 
+    for hub in df['hub'].unique():
+        hub_df = df.loc[df['hub'] == hub]
+        hub_df.reset_index(inplace=True)
+        hub_df = get_forward_pred(hub_df)
+        hub_df.index = hub_df['index']
+        hub_df = hub_df.drop(columns = ['index'])
+        
+        dfs.append(hub_df)
+    full_df = pd.concat(dfs)
+
+    return full_df
+
+
+def get_forward_pred(data):
+    df = data.copy()
+
+    time_window = cos_win(min_win=.25, max_win=6, df_len=len(df))
+    # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
+
+    cols = ['audio', 'img']
+    for col in cols:
+        s = time.time()
+        changes = {}
+        ind_list = df.loc[df[col] == 1].index
+
+        changes['before'] = df[col].value_counts()
+        print(f'Setting {len(ind_list)} indices in column {col} on hub {df["hub"].unique()[0]}') 
+        
+
+        for idx in ind_list:
+            j = idx + time_window[idx]
+            df.loc[(df.index >= idx) & (df.index <= j), col] = 1
+
+        changes['after'] = df[col].value_counts()
+        
+        df[col] = df[col].fillna(-1).astype(int)
+        changes['final'] = df[col].value_counts()
+
+        changes_df = pd.DataFrame.from_dict(changes).fillna(0).astype(int)
+        e = time.time()
+        print(f'Time to complete: {e-s} seconds')
+        print(changes_df,'\n')
+    
+    return df
+
+
+def cos_win(min_win=.25, max_win=1, df_len=8640):
+    min_win = min_win * 360
+    max_win = max_win * 360
+
+    win_range = max_win - min_win
+    t = np.linspace(0, df_len, df_len)
+    win_lim = np.round(win_range/2 * np.cos(t*2*np.pi/8640) + win_range/2 + min_win).astype(int)
+    return win_lim
 
 
 def create_pg(df, db_type, drop=False):
@@ -164,21 +215,11 @@ if __name__ == '__main__':
         final_df = pd.read_csv(db_file)
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
     
+    final_df = final_fill(final_df)
     # final_df = fill_df(final_df)
-    not_fill_cols = ['entry_id', 'day', 'hr_min_sec', 'hub', 'occupied']
-    cols = [col for col in final_df.columns if col not in not_fill_cols]
 
-    for col in cols:
-        if db_type == 'inf':
-            # final_df[col] = final_df[col].astype(int)
-
-            final_df[col] = final_df[col].fillna(-1).astype(int)
-        elif db_type == 'prob':
-            final_df[col] = final_df[col].fillna(-1.0)
-    print('********** final df to enter into database **********')
-    print(final_df)
 
     home_parameters = {'home': home_system.lower().replace('-', '_')}
     pg = PostgreSQL(home_parameters)#, schema)
-    create_pg(final_df, db_type, drop=True)
+    create_pg(final_df, db_type, drop=False)
 
