@@ -50,6 +50,10 @@ def get_forward_pred(data):
     df = data.copy()
 
     time_window = cos_win(min_win=.25, max_win=fill_limit, df_len=len(df))
+    time_list = df['hr_min_sec'].unique()
+    # print(len(time_list))
+    # print(type(time_list))
+    # sys.exit()
     # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
 
     cols = ['audio', 'img']
@@ -61,10 +65,15 @@ def get_forward_pred(data):
         changes['before'] = df[col].value_counts()
         print(f'Setting {len(ind_list)} indices in column {col} on hub {df["hub"].unique()[0]}') 
         
-
+        # i = 0
         for idx in ind_list:
             j = idx + time_window[idx]
             df.loc[(df.index >= idx) & (df.index <= j), col] = 1
+            
+            # print(df.loc[df.index == idx]['hr_min_sec'])#, time_window[idx])
+            # i+=1
+            # if i == 100:
+            #     sys.exit()
 
         changes['after'] = df[col].value_counts()
         
@@ -75,7 +84,7 @@ def get_forward_pred(data):
         e = time.time()
         print(f'Time to complete: {e-s} seconds')
         print(changes_df,'\n')
-    
+    df['env'] = df['env'].fillna(-1).astype(int)
     return df
 
 
@@ -108,15 +117,15 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
     home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
 
-    save_path = make_storage_directory(save_loc) if len(save_loc) > 0 else make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences'))
-    hub_paths = sorted(glob(f'{path}/Inference_DB/{color[0].upper()}S*'))
+    save_path = make_storage_directory(save_loc) if len(save_loc) > 0 else make_storage_directory(os.path.join(path, 'Full_inferences'))
+    hub_paths = sorted(glob(f'{path}/{color[0].upper()}S*'))
     all_hubs = []
     
     for h_path in hub_paths:
         hub = os.path.basename(h_path)
 
         occupancy = []        
-        occ_file_paths = glob(f'{path}/Inference_DB/Full_inferences/*_occupancy.csv')
+        occ_file_paths = glob(f'{path}/Full_inferences/*_occupancy.csv')
         if len(occ_file_paths) > 1:
             print(f'Too many occupancy files {len(occ_file_paths)}. Exiting.')
             sys.exit()
@@ -194,31 +203,41 @@ if __name__ == '__main__':
     parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
     parser.add_argument('-fill_limit', '--fill_limit', default=2, type=int)
     args = parser.parse_args()
-    root_dir = args.path
+    home_dirs = args.path
     db_type = args.db_type
     schema = args.schema
     fill_limit = args.fill_limit
-
-    home_system = os.path.basename(root_dir.strip('/'))
+    print(home_dirs)
     print(f'Using schema: {schema}. Fill limit: {fill_limit}')
-
-    occ_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_occupancy.csv')
-    if not os.path.isfile(occ_file):
-        print('No occupancy summary found. Generating CSV...')
-        write_occupancy_df(root_dir)
     
-    db_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_full_{db_type}.csv')
-    if not os.path.isfile(db_file):
-        print(f'Full inference not found. Generating CSV for: {db_file}  ....')
-        final_df = prepare_data_for_DB(root_dir, db_type=db_type)
+
+    home_files = sorted(glob(os.path.join(home_dirs, 'H5-*')))
+    print(f'Homes to create: {[os.path.basename(home) for home in home_files]}')
+
+    for root_dir in home_files:
+         
+        home_system = os.path.basename(root_dir.strip('/'))
         
-    else:
-        print(f'Reading df from: {db_file}')
-        final_df = pd.read_csv(db_file)
-        final_df.drop(columns=['Unnamed: 0'], inplace=True)
-    
-    final_df = final_fill(final_df)
+        occ_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_occupancy.csv')
+        if not os.path.isfile(occ_file):
+            print('No occupancy summary found. Generating CSV...')
+            write_occupancy_df(root_dir)
+        
+        db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
+        if not os.path.isfile(db_file):
+            print(f'Full inference not found. Generating CSV for: {db_file}  ....')
+            final_df = prepare_data_for_DB(root_dir, db_type=db_type)
+            
+        else:
+            print(f'Reading df from: {db_file}')
+            final_df = pd.read_csv(db_file)
+            final_df.drop(columns=['Unnamed: 0'], inplace=True)
+        
+        print(f'NANS!!!!!! (before): {final_df.isna().sum()}')
+        final_df = final_fill(final_df)
+        print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
 
-    home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters, schema=schema)
-    create_pg(final_df, db_type, drop=False)
+
+        home_parameters = {'home': home_system.lower().replace('-', '_')}
+        pg = PostgreSQL(home_parameters, schema=schema)
+        create_pg(final_df, db_type, drop=True)

@@ -1,4 +1,15 @@
+"""
+write_occupancy.py
+Author: Maggie Jacoby
 
+This function reads in the raw occupancy files (one per occupant) 
+and generates a full occuapncy profile for the home
+This is called in 'create_pgDB.py'
+
+Last Update: 2020-12-10 - give 5 minute buffer of occupied on either side of enter/exit
+                        - only the final value is given the buffer, not the individual occupants
+Can also be run stand alone in 
+"""
 
 import os
 import sys
@@ -8,12 +19,25 @@ import numpy as np
 import pandas as pd
 from glob import glob
 
+import argparse
+
 from my_functions import *
+
+
+def create_buffer(occ_df):
+    
+    occ_df['occupied'] = occ_df['occupied'].replace(to_replace=0, value=np.nan)
+    occ_df['occupied'] = occ_df['occupied'].fillna(method='ffill', limit=30)
+    occ_df['occupied'] = occ_df['occupied'].fillna(method='bfill', limit=30)
+    occ_df['occupied'] = occ_df['occupied'].fillna(value=0.0)
+    occ_df['occupied'] = occ_df['occupied'].astype('int32')
+    return occ_df
 
 
 def write_occupancy_df(path):
     home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
+
 
     save_path = make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences/'))
     occupant_files = glob(f'{path}/GroundTruth/*.csv')
@@ -50,14 +74,28 @@ def write_occupancy_df(path):
             date = row[1]
             state2 = row[0]
             occ_df.loc[(occ_df.index < date) & (occ_df[occ] == 99) & (state1 == 'exited') & (state2 == 'entered'), occ] = 0
-            occ_df.loc[(occ_df.index < date) & (occ_df[occ] == 99) & (state1 == 'entered') & (state2 == 'exited'), occ] = 1
+            occ_df.loc[(occ_df.index <= date) & (occ_df[occ] == 99) & (state1 == 'entered') & (state2 == 'exited'), occ] = 1
             state1 = state2
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'exited'), occ] = 0
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'entered'), occ] = 1
-    
+
     occ_df['occupied'] = occ_df[list(occupants.keys())].max(axis=1)
+    occ_df = create_buffer(occ_df)
+    
     occ_df.index = pd.to_datetime(occ_df.index)
     occ_df.index.name = 'timestamp'
     fname = os.path.join(save_path, f'{home_system}_occupancy.csv')
     occ_df.to_csv(fname, index = True)
     print(fname + ': Write Successful!')
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Description")
+    parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
+
+    args = parser.parse_args()
+    path = args.path
+
+    write_occupancy_df(path)
+    

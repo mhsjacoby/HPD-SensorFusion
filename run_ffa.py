@@ -32,15 +32,15 @@ from pg_functions import *
 
 class Home():
     
-    def __init__(self, pg, system, level, threshold='0.8'):
-        self.schema = 'sixhourfill'
+    def __init__(self, pg, system, level, threshold='0.8', schema='public'):
+        self.schema = schema
         self.pg = pg
         self.system = system.lower().split('-')
         self.pg_system = pg.home
         self.level = level
         self.hubs = self.get_distinct_from_DB('hub')
         self.days = self.get_days(threshold, system)
-        # self.start_time, self.end_time = self.get_hours(system)
+        self.start_time, self.end_time = self.get_hours(system)
         self.run_specifications = self.get_FFA_output()
 
     def get_days(self, threshold, system):
@@ -194,16 +194,6 @@ class FFA_instance():
             if mod == 'None':
                 continue
             hub_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
-            # get_counts(hub_df)
-            # print((hub_df))
-            # changes['before'] = hub_df[mod].value_counts()
-            
-            # # print((hub_df))
-            # changes['after'] = hub_df[mod].value_counts()
-            # changes_df = pd.DataFrame.from_dict(changes)
-            # print(changes_df)
-
-            # hub_df = get_forward_pred(hub_df)
 
             hub_df.drop(columns=['hub'], inplace=True)
             rename_cols = {mod:f'{mod}_{hub[2]}'}
@@ -212,11 +202,14 @@ class FFA_instance():
         
         if len(df_list) == 0:
             df_merged = self.get_null_prediction()
+            print('null!')
 
         else:
             df_merged = reduce(lambda left, right: pd.merge(left, right, on=['day', 'hr_min_sec', 'occupied'], how='outer'), df_list)
+            print('not null')
 
-        
+        print(len(df_merged))
+        sys.exit()
         col = df_merged.pop('occupied')
         df_merged.insert(len(df_merged.columns), col.name, col)
         
@@ -345,35 +338,36 @@ def get_instances(H, comparison):
 if __name__=='__main__':
 
     """ For running in bash script """
-    # run_level = "full"
+    run_level = "full"
+    schema = "nofill"
 
-    # home_system = sys.argv[1]
-    # H_num, color = home_system.split('-')
-    # comparison = sys.argv[2]
-    # comp = comparison.split('_')
-
-    """ For running in terminal """
-    parser = argparse.ArgumentParser(description="Description")
-
-    parser.add_argument('-system', '--system', type=str)
-    parser.add_argument('-level', '--level', type=str, default='full')
-    parser.add_argument('-compare', '--compare', type=str, default='image_audio')
-    args = parser.parse_args()
-
-    home_system = args.system
+    home_system = sys.argv[1]
     H_num, color = home_system.split('-')
-    run_level = args.level
-    comparison = args.compare
+    comparison = sys.argv[2]
     comp = comparison.split('_')
+
+    # """ For running in terminal """
+    # parser = argparse.ArgumentParser(description="Description")
+
+    # parser.add_argument('-system', '--system', type=str)
+    # parser.add_argument('-level', '--level', type=str, default='full')
+    # parser.add_argument('-compare', '--compare', type=str, default='image_audio')
+    # args = parser.parse_args()
+
+    # home_system = args.system
+    # H_num, color = home_system.split('-')
+    # run_level = args.level
+    # comparison = args.compare
+    # comp = comparison.split('_')
 
 
 
     print(f"***** Running: {home_system}, {comparison}")
 
     home_parameters = {'home': f'{H_num.lower()}_{color}'}
-    pg = PostgreSQL(home_parameters)
+    pg = PostgreSQL(home_parameters, schema=schema)
 
-    H = Home(pg=pg, system=home_system, level=run_level)
+    H = Home(pg=pg, system=home_system, level=run_level, schema=schema)
 
     roc_df, SE = get_instances(H, comparison)
     df2 = pd.DataFrame(roc_df['Inclusion'].to_list(), columns=H.hubs)

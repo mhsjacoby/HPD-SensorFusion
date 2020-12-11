@@ -146,4 +146,4 @@ if __name__ == '__main__':
     full_wavg = pd.concat([avg, full_effects])
     Full_metrics = pd.concat([full_wavg, SE])
     # print(Full_metrics)
-    Full_metrics.to_csv(os.path.join('~/Desktop/FFA_output/V5_FFA_runs', f'{home_system}_{run_comparison}.csv'))
+    Full_metrics.to_csv(os.path.join('~/Desktop/FFA_output/V7', f'{home_system}_{run_comparison}.csv'))
