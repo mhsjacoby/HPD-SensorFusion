@@ -21,13 +21,14 @@ from datetime import datetime, timedelta, time
 
 from my_functions import *
 import json
-from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 
+from openpyxl import Workbook
+from openpyxl.utils.cell import get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, colors
 from openpyxl.styles.differential import DifferentialStyle
-from openpyxl.formatting.rule import CellIsRule
-from openpyxl.utils.cell import get_column_letter
+from openpyxl.formatting.rule import CellIsRule, Rule
+
 
 """ Run Parameters """
 perc_threshold = 0.8
@@ -61,16 +62,42 @@ def read_env_summary(filepath):
 
 def format_xlsx(workbook, df, home_system):
     ws = workbook.create_sheet(home_system, -1)
-    grn = PatternFill(bgColor='00CCFFCC')
 
     for row in dataframe_to_rows(df, index=True, header=True):
         ws.append(row)
     ws['A1'] = ws['A2'].value
     ws.delete_rows(idx=2, amount=1)
 
-    perc_rule = CellIsRule(operator='greaterThan', formula=[perc_threshold], stopIfTrue=False, fill=grn)
-    ws.conditional_formatting.add('B2:Q100', perc_rule)
+    col_fin = get_column_letter(ws.max_column)
+    col_second = get_column_letter(ws.max_column-1)
+    n = int(len(ws['A']))
+
+    date_range = f'A2:A{n}'
+    full_range = f'B2:{col_second}{n}'
+    final_range = f'{col_fin}2:{col_fin}{n}'
+
+    grn1 = PatternFill(bgColor='00CCFFCC')
+    blu1 = PatternFill(bgColor='0099CCFF')
+    ylw1 = PatternFill(bgColor='00FFCC00')
+
+    full_cols_rule = CellIsRule(operator='greaterThanOrEqual', 
+        formula=[perc_threshold], stopIfTrue=False, fill=grn1)
+    min_rule = CellIsRule(operator='greaterThanOrEqual',
+        formula=[perc_threshold], stopIfTrue=False, fill=blu1)
+
+    date_col_rule = Rule(type="expression", dxf=DifferentialStyle(fill=ylw1))
+    date_col_rule.formula = [f'${col_fin}2>={perc_threshold}']
+
+    ws.conditional_formatting.add(full_range, full_cols_rule)
+    ws.conditional_formatting.add(final_range, min_rule)
+    ws.conditional_formatting.add(date_range, date_col_rule)
+    
     return workbook
+
+
+
+
+
 
 
 
@@ -78,7 +105,6 @@ if __name__ == '__main__':
 
     days_above_threshold = {}
     workbook = Workbook()
-    # sheet = workbook.active
 
     for home_system in systems:
 
@@ -127,7 +153,7 @@ if __name__ == '__main__':
 
     
 
-    workbook.save(os.path.join(write_loc, f'all_sheets_test.xlsx'))
+    workbook.save(os.path.join(write_loc, f'all_homes_highlight.xlsx'))
     # full_write_loc = os.path.join(write_loc, f'all_days_above_{perc_threshold}.json')
 
     # with open(full_write_loc, 'w') as file:
