@@ -1,4 +1,8 @@
-
+"""
+write_occupancy.py
+author: Maggie Jacoby
+Edited: 2021-1-5 - include minute someone leaves as occupied, not vacant; print unique values in pccupied column
+"""
 
 import os
 import sys
@@ -50,12 +54,13 @@ def write_occupancy_df(path):
             date = row[1]
             state2 = row[0]
             occ_df.loc[(occ_df.index < date) & (occ_df[occ] == 99) & (state1 == 'exited') & (state2 == 'entered'), occ] = 0
-            occ_df.loc[(occ_df.index < date) & (occ_df[occ] == 99) & (state1 == 'entered') & (state2 == 'exited'), occ] = 1
+            occ_df.loc[(occ_df.index <= date) & (occ_df[occ] == 99) & (state1 == 'entered') & (state2 == 'exited'), occ] = 1
             state1 = state2
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'exited'), occ] = 0
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'entered'), occ] = 1
     
     occ_df['occupied'] = occ_df[list(occupants.keys())].max(axis=1)
+    print(occ_df.occupied.unique())
     occ_df.index = pd.to_datetime(occ_df.index)
     occ_df.index.name = 'timestamp'
     fname = os.path.join(save_path, f'{home_system}_occupancy.csv')
