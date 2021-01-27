@@ -19,9 +19,6 @@ import pandas as pd
 from glob import glob
 
 from my_functions import *
-
-
-from my_functions import *
 from pg_functions import *
 
 # from openpyxl import Workbook

@@ -203,41 +203,45 @@ if __name__ == '__main__':
     parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
     parser.add_argument('-fill_limit', '--fill_limit', default=2, type=int)
     args = parser.parse_args()
-    home_dirs = args.path
+    # home_dirs = args.path
+    root_dir = args.path
     db_type = args.db_type
     schema = args.schema
     fill_limit = args.fill_limit
-    print(home_dirs)
-    print(f'Using schema: {schema}. Fill limit: {fill_limit}')
+    # print(home_dirs)
+    # print(f'Using schema: {schema}. Fill limit: {fill_limit}')
     
 
-    home_files = sorted(glob(os.path.join(home_dirs, 'H5-*')))
-    print(f'Homes to create: {[os.path.basename(home) for home in home_files]}')
+    # home_files = sorted(glob(os.path.join(home_dirs, 'H5-*')))
+    # print(f'Homes to create: {[os.path.basename(home) for home in home_files]}')
+    home_system = os.path.basename(root_dir.strip('/'))
 
-    for root_dir in home_files:
+    # for root_dir in home_files:
          
-        home_system = os.path.basename(root_dir.strip('/'))
+    home_system = os.path.basename(root_dir.strip('/'))
+    
+    occ_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_occupancy.csv')
+    if not os.path.isfile(occ_file):
+        print('No occupancy summary found. Generating CSV...')
+        write_occupancy_df(root_dir)
+    sys.exit()
+    
+    db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
+    if not os.path.isfile(db_file):
+        print(f'Full inference not found. Generating CSV for: {db_file}  ....')
+        final_df = prepare_data_for_DB(root_dir, db_type=db_type)
         
-        occ_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_occupancy.csv')
-        if not os.path.isfile(occ_file):
-            print('No occupancy summary found. Generating CSV...')
-            write_occupancy_df(root_dir)
-        
-        db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
-        if not os.path.isfile(db_file):
-            print(f'Full inference not found. Generating CSV for: {db_file}  ....')
-            final_df = prepare_data_for_DB(root_dir, db_type=db_type)
-            
-        else:
-            print(f'Reading df from: {db_file}')
-            final_df = pd.read_csv(db_file)
-            final_df.drop(columns=['Unnamed: 0'], inplace=True)
-        
-        print(f'NANS!!!!!! (before): {final_df.isna().sum()}')
-        final_df = final_fill(final_df)
-        print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
+    else:
+        print(f'Reading df from: {db_file}')
+        final_df = pd.read_csv(db_file)
+        final_df.drop(columns=['Unnamed: 0'], inplace=True)
+    
+    
+    print(f'NANS!!!!!! (before): {final_df.isna().sum()}')
+    final_df = final_fill(final_df)
+    print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
 
 
-        home_parameters = {'home': home_system.lower().replace('-', '_')}
-        pg = PostgreSQL(home_parameters, schema=schema)
-        create_pg(final_df, db_type, drop=True)
+    home_parameters = {'home': home_system.lower().replace('-', '_')}
+    pg = PostgreSQL(home_parameters, schema=schema)
+    create_pg(final_df, db_type, drop=True)
