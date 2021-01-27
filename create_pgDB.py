@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from datetime import datetime, timedelta
+import time
 
 from my_functions import *
 from write_occupancy import *
@@ -28,14 +29,73 @@ from pg_functions import *
 # img_bfill_limit = 1
     
 
-def fill_df(df):
-    filled_df = df.copy(deep=True)
-    # filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=img_ffill_limit*360)
-    # filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=img_bfill_limit*360)
-    filled_df[['img']] = filled_df[['img']].fillna(method='ffill', limit=5)
-    filled_df[['img']] = filled_df[['img']].fillna(method='bfill', limit=5)
-    return(filled_df)
+def final_fill(df):
+    
+    dfs = []
 
+    for hub in df['hub'].unique():
+        hub_df = df.loc[df['hub'] == hub]
+        hub_df.reset_index(inplace=True)
+        hub_df = get_forward_pred(hub_df)
+        hub_df.index = hub_df['index']
+        hub_df = hub_df.drop(columns = ['index'])
+        
+        dfs.append(hub_df)
+    full_df = pd.concat(dfs)
+
+    return full_df
+
+
+def get_forward_pred(data):
+    df = data.copy()
+
+    time_window = cos_win(min_win=.25, max_win=fill_limit, df_len=len(df))
+    time_list = df['hr_min_sec'].unique()
+    # print(len(time_list))
+    # print(type(time_list))
+    # sys.exit()
+    # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
+
+    cols = ['audio', 'img']
+    for col in cols:
+        s = time.time()
+        changes = {}
+        ind_list = df.loc[df[col] == 1].index
+
+        changes['before'] = df[col].value_counts()
+        print(f'Setting {len(ind_list)} indices in column {col} on hub {df["hub"].unique()[0]}') 
+        
+        # i = 0
+        for idx in ind_list:
+            j = idx + time_window[idx]
+            df.loc[(df.index >= idx) & (df.index <= j), col] = 1
+            
+            # print(df.loc[df.index == idx]['hr_min_sec'])#, time_window[idx])
+            # i+=1
+            # if i == 100:
+            #     sys.exit()
+
+        changes['after'] = df[col].value_counts()
+        
+        df[col] = df[col].fillna(-1).astype(int)
+        changes['final'] = df[col].value_counts()
+
+        changes_df = pd.DataFrame.from_dict(changes).fillna(0).astype(int)
+        e = time.time()
+        print(f'Time to complete: {e-s} seconds')
+        print(changes_df,'\n')
+    df['env'] = df['env'].fillna(-1).astype(int)
+    return df
+
+
+def cos_win(min_win=.25, max_win=1, df_len=8640):
+    min_win = min_win * 360
+    max_win = max_win * 360
+
+    win_range = max_win - min_win
+    t = np.linspace(0, df_len, df_len)
+    win_lim = np.round(win_range/2 * np.cos(t*2*np.pi/8640) + win_range/2 + min_win).astype(int)
+    return win_lim
 
 
 def create_pg(df, db_type, drop=False):
@@ -57,15 +117,15 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
     home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
 
-    save_path = make_storage_directory(save_loc) if len(save_loc) > 0 else make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences'))
-    hub_paths = sorted(glob(f'{path}/Inference_DB/{color[0].upper()}S*'))
+    save_path = make_storage_directory(save_loc) if len(save_loc) > 0 else make_storage_directory(os.path.join(path, 'Full_inferences'))
+    hub_paths = sorted(glob(f'{path}/{color[0].upper()}S*'))
     all_hubs = []
     
     for h_path in hub_paths:
         hub = os.path.basename(h_path)
 
         occupancy = []        
-        occ_file_paths = glob(f'{path}/Inference_DB/Full_inferences/*_occupancy.csv')
+        occ_file_paths = glob(f'{path}/Full_inferences/*_occupancy.csv')
         if len(occ_file_paths) > 1:
             print(f'Too many occupancy files {len(occ_file_paths)}. Exiting.')
             sys.exit()
@@ -140,21 +200,33 @@ if __name__ == '__main__':
 
     parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     parser.add_argument('-db_type','--db_type', default='inf', type=str, help='Type of database to create (inference, probability, ...')
-    # parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
+    parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
+    parser.add_argument('-fill_limit', '--fill_limit', default=2, type=int)
     args = parser.parse_args()
+    # home_dirs = args.path
     root_dir = args.path
     db_type = args.db_type
-    # schema = args.schema
+    schema = args.schema
+    fill_limit = args.fill_limit
+    # print(home_dirs)
+    # print(f'Using schema: {schema}. Fill limit: {fill_limit}')
+    
 
+    # home_files = sorted(glob(os.path.join(home_dirs, 'H5-*')))
+    # print(f'Homes to create: {[os.path.basename(home) for home in home_files]}')
     home_system = os.path.basename(root_dir.strip('/'))
-    # print(f'Using schema: {schema}')
 
-    occ_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_occupancy.csv')
+    # for root_dir in home_files:
+         
+    home_system = os.path.basename(root_dir.strip('/'))
+    
+    occ_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_occupancy.csv')
     if not os.path.isfile(occ_file):
         print('No occupancy summary found. Generating CSV...')
         write_occupancy_df(root_dir)
+    sys.exit()
     
-    db_file = os.path.join(root_dir, 'Inference_DB', 'Full_inferences', f'{home_system}_full_{db_type}.csv')
+    db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
     if not os.path.isfile(db_file):
         print(f'Full inference not found. Generating CSV for: {db_file}  ....')
         final_df = prepare_data_for_DB(root_dir, db_type=db_type)
@@ -164,21 +236,12 @@ if __name__ == '__main__':
         final_df = pd.read_csv(db_file)
         final_df.drop(columns=['Unnamed: 0'], inplace=True)
     
-    # final_df = fill_df(final_df)
-    not_fill_cols = ['entry_id', 'day', 'hr_min_sec', 'hub', 'occupied']
-    cols = [col for col in final_df.columns if col not in not_fill_cols]
+    
+    print(f'NANS!!!!!! (before): {final_df.isna().sum()}')
+    final_df = final_fill(final_df)
+    print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
 
-    for col in cols:
-        if db_type == 'inf':
-            # final_df[col] = final_df[col].astype(int)
-
-            final_df[col] = final_df[col].fillna(-1).astype(int)
-        elif db_type == 'prob':
-            final_df[col] = final_df[col].fillna(-1.0)
-    print('********** final df to enter into database **********')
-    print(final_df)
 
     home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters)#, schema)
+    pg = PostgreSQL(home_parameters, schema=schema)
     create_pg(final_df, db_type, drop=True)
-

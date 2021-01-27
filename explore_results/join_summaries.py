@@ -3,7 +3,8 @@ join_summaries.py
 Author: Maggie Jacoby
 Date: November 2020
 
-This is used to summarize the completeness of each day/hub, and combine summaries for audio and images.
+This is used to summarize the completeness of each day/hub by reading in individual modality summaries
+Combines summaries for audio and images for all homes.
 No inputs are needed when running the script.
 
 Outputs summaries (csv) for all days/hubs, plus json with list of days above threshold (default 80%)
@@ -13,6 +14,7 @@ Outputs summaries (csv) for all days/hubs, plus json with list of days above thr
 import os
 import sys
 import csv
+import json
 import argparse
 import numpy as np
 import pandas as pd
@@ -20,7 +22,6 @@ from glob import glob
 from datetime import datetime, timedelta, time
 
 from my_functions import *
-import json
 
 """ Run Parameters """
 perc_threshold = 0.8

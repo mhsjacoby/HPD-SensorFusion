@@ -28,9 +28,12 @@ from pg_functions import *
 
 
 
+
+
 class Home():
     
-    def __init__(self, pg, system, level, threshold='0.8'):
+    def __init__(self, pg, system, level, threshold='0.8', schema='public'):
+        self.schema = schema
         self.pg = pg
         self.system = system.lower().split('-')
         self.pg_system = pg.home
@@ -39,7 +42,6 @@ class Home():
         self.days = self.get_days(threshold, system)
         self.start_time, self.end_time = self.get_hours(system)
         self.run_specifications = self.get_FFA_output()
-
 
     def get_days(self, threshold, system):
         all_days_db = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
@@ -63,14 +65,13 @@ class Home():
         return start_time, end_time
 
 
-
     def get_distinct_from_DB(self, col):
         print(self.pg_system)
 
         query = """
             SELECT DISTINCT %s
-            FROM %s_inf;
-            """ %(col, self.pg_system)
+            FROM %s.%s_inf;
+            """ %(col, self.schema, self.pg_system)
 
         distinct = self.pg.query_db(query)[col].unique()
         return sorted(distinct)
@@ -80,9 +81,9 @@ class Home():
 
         select_query = """
             SELECT day, hr_min_sec, hub, %s, occupied
-            FROM %s_inf
+            FROM %s.%s_inf
             WHERE %s_inf.hub = '%s'
-            """ %(mod, self.pg_system, self.pg_system, hub)
+            """ %(mod, self.schema, self.pg_system, self.pg_system, hub)
 
         return select_query
 
@@ -99,6 +100,39 @@ class Home():
         return run_specifications
 
 
+# def get_counts(df):
+#     skip_cols = ['day', 'hr_min_sec', 'hub']
+
+#     for col in df[df.columns.difference(skip_cols)]:
+#         print(df[col].value_counts())
+
+# def cos_win(min_win=.25, max_win=3, df_len=8640):
+#     min_win = min_win * 360
+#     max_win = max_win * 360
+
+#     win_range = max_win - min_win
+#     t = np.linspace(0, df_len, df_len)
+#     win_lim = np.round(win_range/2 * np.cos(t*2*np.pi/8640) + win_range/2 + min_win).astype(int)
+#     return win_lim
+
+# def get_forward_pred(data):
+#     df = data.copy()
+    
+#     time_window = cos_win(min_win=.25, max_win=2, df_len=len(df))
+#     ind_map = {x:y for y,x in zip(time_window, df.index)}   # x is the index number of the df, y is the lookahead value
+    
+#     skip_cols = ['day', 'hr_min_sec', 'hub', 'occupied']
+    
+#     for col in df[df.columns.difference(skip_cols)]:
+#         ind_list = df.loc[df[col] == 1].index
+
+#         for idx in ind_list:
+#             j = idx + ind_map[idx]
+#             df.loc[(df.index >= idx) & (df.index <= j), col] = 1
+    
+#     return df
+        # print(df[col].value_counts())
+        # print(f'setting {len(ind_list)} indices in column: {col}')
 
 class FFA_instance():
     # mod_dict = {'-1': 'audio', '1': 'img'}
@@ -124,6 +158,7 @@ class FFA_instance():
         self.var_f1, self.var_accuracy = np.var(self.rate_results['f1']), np.var(self.rate_results['accuracy'])
 
     def define_comparison(self, comparison):
+        # print(comparison)
         if comparison == 'image_audio':
             mod_dict = {'-1': 'audio', '1': 'img'}
         elif comparison == 'audio_none':
@@ -153,11 +188,13 @@ class FFA_instance():
         df_list = []
         print(self.run_modalities)
         for hub in self.run_modalities:
+            changes = {}
             mod = self.run_modalities[hub]
             print(f'hub: {hub}, modality: {mod}')
             if mod == 'None':
                 continue
             hub_df = self.Home.pg.query_db(self.Home.select_from_hub(hub, mod))
+
             hub_df.drop(columns=['hub'], inplace=True)
             rename_cols = {mod:f'{mod}_{hub[2]}'}
             hub_df.rename(columns = rename_cols, inplace=True)
@@ -165,14 +202,33 @@ class FFA_instance():
         
         if len(df_list) == 0:
             df_merged = self.get_null_prediction()
+            print('null!')
 
         else:
             df_merged = reduce(lambda left, right: pd.merge(left, right, on=['day', 'hr_min_sec', 'occupied'], how='outer'), df_list)
+            print('not null')
 
-        print(df_merged.columns)
-
+        print(len(df_merged))
+        sys.exit()
         col = df_merged.pop('occupied')
         df_merged.insert(len(df_merged.columns), col.name, col)
+        
+        changes = {}
+        print(df_merged.columns)
+        skip_cols = ['day', 'hr_min_sec', 'occupied']
+    
+        for hub_mod in df_merged.columns.difference(skip_cols):
+            changes[f'{hub_mod}-before'] = df_merged[hub_mod].value_counts()
+
+        df_merged = df_merged[(df_merged != -1).all(axis=1)]
+
+        for hub_mod in df_merged.columns.difference(skip_cols):
+            changes[f'{hub_mod}-after'] = df_merged[hub_mod].value_counts()
+
+        changes_df = pd.DataFrame.from_dict(changes).fillna(0).astype(int)
+        changes_df = changes_df.transpose().sort_index()
+        changes_df['total'] = changes_df[list(changes_df.columns)].sum(axis=1)
+        print(changes_df)
         return df_merged
 
     
@@ -180,7 +236,13 @@ class FFA_instance():
         df = self.df.copy()
         skip_cols = ['day', 'hr_min_sec', 'occupied']
         df['prediction'] = 0
+
         df.loc[df[df.columns.difference(skip_cols)].sum(axis=1) > 0, 'prediction'] = 1
+        
+        for col in df[df.columns.difference(skip_cols)]:
+            print(df[col].value_counts())
+        print(df['occupied'].value_counts())
+
         skip_cols.append('prediction')
         return df[skip_cols]
         
@@ -191,7 +253,7 @@ class FFA_instance():
         for day_str in sorted(days):
             day = datetime.strptime(day_str, '%Y-%m-%d').date()
             day_df = self.predictions.loc[self.predictions['day'] == day]
-            day_df = day_df.loc[~((day_df['hr_min_sec'] >= self.Home.start_time) & (day_df['hr_min_sec'] < self.Home.end_time))]
+            # day_df = day_df.loc[~((day_df['hr_min_sec'] >= self.Home.start_time) & (day_df['hr_min_sec'] < self.Home.end_time))]
 
             tn, fp, fn, tp = confusion_matrix(day_df['occupied'], day_df['prediction'], labels=[0,1]).ravel()
             f1.append(f1_score(day_df['occupied'], day_df['prediction']))
@@ -232,6 +294,7 @@ def get_instances(H, comparison):
     all_instances = {}
 
     for x in H.run_specifications:
+        
         inst = FFA_instance(x, H, comparison)
         
         all_instances[inst.run] = inst
@@ -273,23 +336,38 @@ def get_instances(H, comparison):
 
 
 if __name__=='__main__':
-    parser = argparse.ArgumentParser(description="Description")
 
-    parser.add_argument('-system', '--system', type=str)
-    parser.add_argument('-level', '--level', type=str, default='full')
-    parser.add_argument('-compare', '--compare', type=str, default='image_audio')
-    args = parser.parse_args()
+    """ For running in bash script """
+    run_level = "full"
+    schema = "nofill"
 
-    home_system = args.system
+    home_system = sys.argv[1]
     H_num, color = home_system.split('-')
-    run_level = args.level
-    comparison = args.compare
+    comparison = sys.argv[2]
     comp = comparison.split('_')
 
-    home_parameters = {'home': f'{H_num.lower()}_{color}'}
-    pg = PostgreSQL(home_parameters)
+    # """ For running in terminal """
+    # parser = argparse.ArgumentParser(description="Description")
 
-    H = Home(pg=pg, system=home_system, level=run_level)
+    # parser.add_argument('-system', '--system', type=str)
+    # parser.add_argument('-level', '--level', type=str, default='full')
+    # parser.add_argument('-compare', '--compare', type=str, default='image_audio')
+    # args = parser.parse_args()
+
+    # home_system = args.system
+    # H_num, color = home_system.split('-')
+    # run_level = args.level
+    # comparison = args.compare
+    # comp = comparison.split('_')
+
+
+
+    print(f"***** Running: {home_system}, {comparison}")
+
+    home_parameters = {'home': f'{H_num.lower()}_{color}'}
+    pg = PostgreSQL(home_parameters, schema=schema)
+
+    H = Home(pg=pg, system=home_system, level=run_level, schema=schema)
 
     roc_df, SE = get_instances(H, comparison)
     df2 = pd.DataFrame(roc_df['Inclusion'].to_list(), columns=H.hubs)

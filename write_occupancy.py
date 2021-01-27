@@ -1,7 +1,13 @@
 """
 write_occupancy.py
-author: Maggie Jacoby
-Edited: 2021-1-5 - include minute someone leaves as occupied, not vacant; print unique values in pccupied column
+Author: Maggie Jacoby
+
+This function reads in the raw occupancy files (one per occupant) 
+and generates a full occuapncy profile for the home
+This is called in 'create_pgDB.py' and can also be can independently with command line arguments
+
+Last Update: 2021-01-21 - give a buffer of occupied on either side of enter/exit
+                        - write day_wise occupancy files
 """
 
 import os
@@ -11,8 +17,19 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from glob import glob
+import argparse
 
 from my_functions import *
+
+
+def create_buffer(occ_df, buffer=1):
+    num_points = buffer*6
+    occ_df['occupied'] = occ_df['occupied'].replace(to_replace=0, value=np.nan)
+    occ_df['occupied'] = occ_df['occupied'].fillna(method='ffill', limit=num_points)
+    occ_df['occupied'] = occ_df['occupied'].fillna(method='bfill', limit=num_points)
+    occ_df['occupied'] = occ_df['occupied'].fillna(value=0.0)
+    occ_df['occupied'] = occ_df['occupied'].astype('int32')
+    return occ_df
 
 
 def write_occupancy_df(path):
@@ -58,11 +75,24 @@ def write_occupancy_df(path):
             state1 = state2
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'exited'), occ] = 0
         occ_df.loc[(occ_df.index >= date) & (occ_df[occ] == 99) & (state1 == 'entered'), occ] = 1
-    
+
     occ_df['occupied'] = occ_df[list(occupants.keys())].max(axis=1)
-    print(occ_df.occupied.unique())
+    occ_df = create_buffer(occ_df)
+    
     occ_df.index = pd.to_datetime(occ_df.index)
     occ_df.index.name = 'timestamp'
     fname = os.path.join(save_path, f'{home_system}_occupancy.csv')
     occ_df.to_csv(fname, index = True)
     print(fname + ': Write Successful!')
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Read occupancy files and generate ground truth.')
+    parser.add_argument('-path','--path', default='', type=str, help='path of stored data')
+
+    args = parser.parse_args()
+    path = args.path
+
+    write_occupancy_df(path)
+    

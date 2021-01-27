@@ -62,12 +62,12 @@ class Structs():
 
 
 class PostgreSQL(Structs):
-    def __init__(self, home_parameters, connection_params=connection_parameters, schema="nofill"):
+    def __init__(self, home_parameters, connection_params=connection_parameters, schema="public"):
         self.P = connection_params
         self.home = home_parameters["home"]
         self.schema = schema
+        print(f'PG Schema: {self.schema}')
         Structs.__init__(self)
-
 
     def connect(self):
         conn = None
@@ -128,6 +128,7 @@ class PostgreSQL(Structs):
         schema = self.schema
         conn = self.connect()
         table = f'{schema}.{table}'
+        print(f'Table to insert: {table}')
         try:
             tuples = [tuple(x) for x in df.to_numpy()]
             cols = ",".join(list(df.columns))
