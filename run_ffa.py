@@ -24,11 +24,10 @@ from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from my_functions import *
 from pg_functions import *
 
+start_end_file = 'start_end_dates.json'
 
-
-
-
-
+"""audio, env, img, None
+"""
 
 class Home():
     
@@ -39,30 +38,30 @@ class Home():
         self.pg_system = pg.home
         self.level = level
         self.hubs = self.get_distinct_from_DB('hub')
-        self.days = self.get_days(threshold, system)
-        self.start_time, self.end_time = self.get_hours(system)
+        self.days = get_date_list(read_file=start_end_file, H_num=H_num)
+        # self.start_time, self.end_time = self.get_hours(system)
         self.run_specifications = self.get_FFA_output()
 
-    def get_days(self, threshold, system):
-        all_days_db = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
-        days_above_file = os.path.join('/Users/maggie/Desktop/CompleteSummaries', f'all_days_above_{threshold}.json')
-        with open(days_above_file) as file:
-            fdata = json.load(file)
+    # def get_days(self, threshold, system):
+    #     all_days_db = [x.strftime('%Y-%m-%d') for x in self.get_distinct_from_DB('day')]
+    #     days_above_file = os.path.join('/Users/maggie/Desktop/CompleteSummaries', f'all_days_above_{threshold}.json')
+    #     with open(days_above_file) as file:
+    #         fdata = json.load(file)
         
-        all_days_th = fdata[system]
-        days = sorted(list(set(all_days_db).intersection(all_days_th)))
-        print(f'Number of days to available above threshold {threshold}: {len(days)}')
-        return days
+    #     all_days_th = fdata[system]
+    #     days = sorted(list(set(all_days_db).intersection(all_days_th)))
+    #     print(f'Number of days to available above threshold {threshold}: {len(days)}')
+    #     return days
 
-    def get_hours(self, system):
-        hours_asleep_file = '/Users/maggie/Desktop/CompleteSummaries/hours_asleep.json'
-        with open(hours_asleep_file) as file:
-            fdata = json.load(file)
-        times = fdata[system]
-        start_time = datetime.strptime(times['start'], '%H:%M:%S').time()
-        end_time = datetime.strptime(times['end'], '%H:%M:%S').time()
-        print(f'Not calculating between the hours of {start_time} and {end_time}')
-        return start_time, end_time
+    # def get_hours(self, system):
+    #     hours_asleep_file = '/Users/maggie/Desktop/CompleteSummaries/hours_asleep.json'
+    #     with open(hours_asleep_file) as file:
+    #         fdata = json.load(file)
+    #     times = fdata[system]
+    #     start_time = datetime.strptime(times['start'], '%H:%M:%S').time()
+    #     end_time = datetime.strptime(times['end'], '%H:%M:%S').time()
+    #     print(f'Not calculating between the hours of {start_time} and {end_time}')
+    #     return start_time, end_time
 
 
     def get_distinct_from_DB(self, col):
@@ -139,7 +138,8 @@ class FFA_instance():
     
     def __init__(self, run, Home, comparison):
         self.Home = Home
-        self.mod_dict = self.define_comparison(comparison)
+        # self.mod_dict = self.define_comparison(comparison)
+        self.mod_dict = self.create_mod_dict(comparison)
         self.run  = run[0]
         self.spec = run[1]
         # self.check_spec()
@@ -157,14 +157,10 @@ class FFA_instance():
         self.var_TNR, self.var_FNR = np.var(self.rate_results['TNR']), np.var(self.rate_results['FNR']) 
         self.var_f1, self.var_accuracy = np.var(self.rate_results['f1']), np.var(self.rate_results['accuracy'])
 
-    def define_comparison(self, comparison):
-        # print(comparison)
-        if comparison == 'image_audio':
-            mod_dict = {'-1': 'audio', '1': 'img'}
-        elif comparison == 'audio_none':
-            mod_dict = {'-1': 'None', '1': 'audio'}
-        elif comparison == 'image_none':
-            mod_dict = {'-1': 'None', '1': 'img'}
+    def create_mod_dict(self, comparison):
+        comp_pos1, comp_neg1 = comparison.split('_')
+        mod_dict = {'-1': comp_neg1, '1': comp_pos1}
+        print(mod_dict)
         return mod_dict
         
 
@@ -209,7 +205,6 @@ class FFA_instance():
             print('not null')
 
         print(len(df_merged))
-        sys.exit()
         col = df_merged.pop('occupied')
         df_merged.insert(len(df_merged.columns), col.name, col)
         
@@ -296,7 +291,7 @@ def get_instances(H, comparison):
     for x in H.run_specifications:
         
         inst = FFA_instance(x, H, comparison)
-        
+
         all_instances[inst.run] = inst
         
         d['False Positive Rate'].append(inst.FPR)
@@ -333,11 +328,11 @@ def get_instances(H, comparison):
 
 
 
-
+"start_end_dates.json"
 
 if __name__=='__main__':
 
-    """ For running in bash script """
+    # """ For running in bash script """
     run_level = "full"
     schema = "nofill"
 
@@ -346,7 +341,7 @@ if __name__=='__main__':
     comparison = sys.argv[2]
     comp = comparison.split('_')
 
-    # """ For running in terminal """
+    """ For running in terminal """
     # parser = argparse.ArgumentParser(description="Description")
 
     # parser.add_argument('-system', '--system', type=str)

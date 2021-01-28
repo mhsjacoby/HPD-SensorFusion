@@ -117,7 +117,8 @@ if __name__ == '__main__':
     # args = parser.parse_args()
     # file_path = args.path
     
-    file_path =sys.argv[1]
+    file_path = sys.argv[1]
+    print(file_path)
     home_system = os.path.basename(file_path.strip('/')).split('_')[0]
     view_set = os.path.basename(file_path.strip('/')).split('_')[1].strip('.csv')
     run_comparison = os.path.basename(file_path.strip('/')).split('_')[-1].strip('.csv')
@@ -129,18 +130,20 @@ if __name__ == '__main__':
     Main_effects = get_effects(hub_df, metric_df)
     # Main_effects.to_csv(os.path.join(root_dir, f'{home_system}_main_effects.csv'))
 
-    TwoFI = get_interactions(hub_df)
-    Two_level_effects = get_effects(TwoFI, metric_df)
+    # TwoFI = get_interactions(hub_df)
+    # Two_level_effects = get_effects(TwoFI, metric_df)
     # Two_level_effects.to_csv(os.path.join(root_dir, f'{home_system}_2FI_effects.csv'))
 
-    ThreeFI = get_interactions(hub_df, level=3)
-    Three_level_effects = get_effects(ThreeFI, metric_df)
+    # ThreeFI = get_interactions(hub_df, level=3)
+    # Three_level_effects = get_effects(ThreeFI, metric_df)
     # Three_level_effects.to_csv(os.path.join(root_dir, f'{home_system}_3FI_effects.csv'))
 
-    full_effects = pd.concat([Main_effects, Two_level_effects, Three_level_effects], axis=0)
+    # full_effects = pd.concat([Main_effects, Two_level_effects, Three_level_effects], axis=0)
 
     avg = avg_effect(metric_df)
-    full_wavg = pd.concat([avg, full_effects])
+    # full_wavg = pd.concat([avg, full_effects])
+    full_wavg = pd.concat([avg, Main_effects])
     Full_metrics = pd.concat([full_wavg, SE])
     # print(Full_metrics)
-    Full_metrics.to_csv(os.path.join('~/Desktop/FFA_output/V7', f'{home_system}_{run_comparison}.csv'))
+    save_folder = make_storage_directory('/Users/maggie/Desktop/FFA_output/env_comp')
+    Full_metrics.to_csv(os.path.join(save_folder, f'{home_system}_{run_comparison}.csv'))

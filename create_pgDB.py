@@ -1,7 +1,8 @@
 """
 create_pgDB.py
 Author: Maggie Jacoby
-Last update: October 13, 2020
+Last update: January 28, 2021
+    - Read new occupancy files and input into pg
 
 Similar to the Jupyter notebook Load_data_into_Postgres.ipynb, which takes in the 
 inferences (audio_inf, img_ing, env_inf) and creates a postgreSQL database from them.
@@ -29,73 +30,65 @@ from pg_functions import *
 # img_bfill_limit = 1
     
 
-def final_fill(df):
-    
-    dfs = []
+def final_fill(df, fill_limit=1):
 
-    for hub in df['hub'].unique():
-        hub_df = df.loc[df['hub'] == hub]
-        hub_df.reset_index(inplace=True)
-        hub_df = get_forward_pred(hub_df)
-        hub_df.index = hub_df['index']
-        hub_df = hub_df.drop(columns = ['index'])
+    df = df.fillna(method='ffill', limit=fill_limit)
+    df = df.fillna(method='bfill', limit=fill_limit)
+    df = df.fillna(value=0)
+
+    return df_merged
+
+
+# def get_forward_pred(data):
+#     df = data.copy()
+
+#     time_window = cos_win(min_win=.25, max_win=fill_limit, df_len=len(df))
+#     time_list = df['hr_min_sec'].unique()
+#     # print(len(time_list))
+#     # print(type(time_list))
+#     # sys.exit()
+#     # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
+
+#     cols = ['audio', 'img']
+#     for col in cols:
+#         s = time.time()
+#         changes = {}
+#         ind_list = df.loc[df[col] == 1].index
+
+#         changes['before'] = df[col].value_counts()
+#         print(f'Setting {len(ind_list)} indices in column {col} on hub {df["hub"].unique()[0]}') 
         
-        dfs.append(hub_df)
-    full_df = pd.concat(dfs)
-
-    return full_df
-
-
-def get_forward_pred(data):
-    df = data.copy()
-
-    time_window = cos_win(min_win=.25, max_win=fill_limit, df_len=len(df))
-    time_list = df['hr_min_sec'].unique()
-    # print(len(time_list))
-    # print(type(time_list))
-    # sys.exit()
-    # ind_map = {x:y for x, y in zip(df.index, time_window)}   # x is the index number of the df, y is the lookahead value
-
-    cols = ['audio', 'img']
-    for col in cols:
-        s = time.time()
-        changes = {}
-        ind_list = df.loc[df[col] == 1].index
-
-        changes['before'] = df[col].value_counts()
-        print(f'Setting {len(ind_list)} indices in column {col} on hub {df["hub"].unique()[0]}') 
-        
-        # i = 0
-        for idx in ind_list:
-            j = idx + time_window[idx]
-            df.loc[(df.index >= idx) & (df.index <= j), col] = 1
+#         # i = 0
+#         for idx in ind_list:
+#             j = idx + time_window[idx]
+#             df.loc[(df.index >= idx) & (df.index <= j), col] = 1
             
-            # print(df.loc[df.index == idx]['hr_min_sec'])#, time_window[idx])
-            # i+=1
-            # if i == 100:
-            #     sys.exit()
+#             # print(df.loc[df.index == idx]['hr_min_sec'])#, time_window[idx])
+#             # i+=1
+#             # if i == 100:
+#             #     sys.exit()
 
-        changes['after'] = df[col].value_counts()
+#         changes['after'] = df[col].value_counts()
         
-        df[col] = df[col].fillna(-1).astype(int)
-        changes['final'] = df[col].value_counts()
+#         df[col] = df[col].fillna(-1).astype(int)
+#         changes['final'] = df[col].value_counts()
 
-        changes_df = pd.DataFrame.from_dict(changes).fillna(0).astype(int)
-        e = time.time()
-        print(f'Time to complete: {e-s} seconds')
-        print(changes_df,'\n')
-    df['env'] = df['env'].fillna(-1).astype(int)
-    return df
+#         changes_df = pd.DataFrame.from_dict(changes).fillna(0).astype(int)
+#         e = time.time()
+#         print(f'Time to complete: {e-s} seconds')
+#         print(changes_df,'\n')
+#     df['env'] = df['env'].fillna(-1).astype(int)
+#     return df
 
 
-def cos_win(min_win=.25, max_win=1, df_len=8640):
-    min_win = min_win * 360
-    max_win = max_win * 360
+# def cos_win(min_win=.25, max_win=1, df_len=8640):
+#     min_win = min_win * 360
+#     max_win = max_win * 360
 
-    win_range = max_win - min_win
-    t = np.linspace(0, df_len, df_len)
-    win_lim = np.round(win_range/2 * np.cos(t*2*np.pi/8640) + win_range/2 + min_win).astype(int)
-    return win_lim
+#     win_range = max_win - min_win
+#     t = np.linspace(0, df_len, df_len)
+#     win_lim = np.round(win_range/2 * np.cos(t*2*np.pi/8640) + win_range/2 + min_win).astype(int)
+#     return win_lim
 
 
 def create_pg(df, db_type, drop=False):
@@ -198,50 +191,47 @@ def prepare_data_for_DB(path, db_type, save_loc=''):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Description")
 
-    parser.add_argument('-path','--path', default='', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
+    parser.add_argument('-path','--path', default='/Users/maggie/Desktop/InferenceDB', type=str, help='path of stored data') # Stop at house level, example G:\H6-black\
     parser.add_argument('-db_type','--db_type', default='inf', type=str, help='Type of database to create (inference, probability, ...')
-    parser.add_argument('-schema', '--schema', default='public', type=str, help='Schema to use (default is public).')
-    parser.add_argument('-fill_limit', '--fill_limit', default=2, type=int)
+    parser.add_argument('-schema', '--schema', default='new_occ', type=str, help='Schema to use (default is public).')
+    parser.add_argument('-fill_limit', '--fill_limit', default=5, type=int)
     args = parser.parse_args()
     # home_dirs = args.path
     root_dir = args.path
     db_type = args.db_type
     schema = args.schema
     fill_limit = args.fill_limit
-    # print(home_dirs)
-    # print(f'Using schema: {schema}. Fill limit: {fill_limit}')
-    
 
-    # home_files = sorted(glob(os.path.join(home_dirs, 'H5-*')))
-    # print(f'Homes to create: {[os.path.basename(home) for home in home_files]}')
-    home_system = os.path.basename(root_dir.strip('/'))
+    for home_path in sorted(glob(os.path.join(root_dir, 'H*'))):
+        # print(home_path)
+        home_system = os.path.basename(home_path.strip('/'))
+        print(home_system)
 
-    # for root_dir in home_files:
-         
-    home_system = os.path.basename(root_dir.strip('/'))
     
-    occ_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_occupancy.csv')
-    if not os.path.isfile(occ_file):
-        print('No occupancy summary found. Generating CSV...')
-        write_occupancy_df(root_dir)
-    sys.exit()
+        occ_file = os.path.join(home_path, 'Full_inferences', f'{home_system}_occupancy.csv')
+        if not os.path.isfile(occ_file):
+            print('No occupancy summary found. Generating CSV...')
+            write_occupancy_df(home_path)
+        else:
+            print(f'Using occuapncy summary: {occ_file}')
+        # sys.exit()
     
-    db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
-    if not os.path.isfile(db_file):
-        print(f'Full inference not found. Generating CSV for: {db_file}  ....')
-        final_df = prepare_data_for_DB(root_dir, db_type=db_type)
+        db_file = os.path.join(home_path, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
+        if not os.path.isfile(db_file):
+            print(f'Full inference not found. Generating CSV for: {db_file}  ....')
+            final_df = prepare_data_for_DB(home_path, db_type=db_type)
+            
+        else:
+            print(f'Reading df from: {db_file}')
+            final_df = pd.read_csv(db_file)
+            final_df.drop(columns=['Unnamed: 0'], inplace=True)
         
-    else:
-        print(f'Reading df from: {db_file}')
-        final_df = pd.read_csv(db_file)
-        final_df.drop(columns=['Unnamed: 0'], inplace=True)
-    
-    
-    print(f'NANS!!!!!! (before): {final_df.isna().sum()}')
-    final_df = final_fill(final_df)
-    print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
+        
+        print(f'NANS!!!!!! (before)\n: {final_df.isna().sum()}')
+        final_df = final_fill(final_df, fill_limit=5)
+        print(f'NANS!!!!!! (after)\n: {final_df.isna().sum()}')
 
 
-    home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters, schema=schema)
-    create_pg(final_df, db_type, drop=True)
+        home_parameters = {'home': home_system.lower().replace('-', '_')}
+        pg = PostgreSQL(home_parameters, schema=schema)
+        create_pg(final_df, db_type, drop=True)

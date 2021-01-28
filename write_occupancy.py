@@ -36,7 +36,7 @@ def write_occupancy_df(path):
     home_system = os.path.basename(path.strip('/'))
     H_num, color = home_system.split('-')
 
-    save_path = make_storage_directory(os.path.join(path, 'Inference_DB/Full_inferences/'))
+    save_path = make_storage_directory(os.path.join(path, 'Full_inferences/'))
     occupant_files = glob(f'{path}/GroundTruth/*.csv')
     occupant_names = []
     occupants = {}
