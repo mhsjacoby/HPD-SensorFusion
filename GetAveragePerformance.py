@@ -20,9 +20,6 @@ from my_functions import *
 
 start_end_file = 'start_end_dates.json'
 
-"""audio, env, img, None
-"""
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Get average performance across all hubs.")
@@ -52,6 +49,8 @@ if __name__ == '__main__':
     
         audio_list, img_list, env_list = [], [], []
         for h_path in hub_paths:
+            print(h_path)
+            # hub_df = pd.read_csv(h_path, index_col='timestamp', usecols=['timestamp', 'audio', 'img'] )
             hub_df = pd.read_csv(h_path, index_col='timestamp', usecols=['timestamp', 'audio', 'img', 'env'] )
     
             audio_list.append(hub_df['audio'])
@@ -71,8 +70,10 @@ if __name__ == '__main__':
         max_env = env_df.max(axis=1)
         max_env.name = 'Env'
 
+        # df = pd.concat([max_audio, max_img, occ_df], axis=1)
         df = pd.concat([max_audio, max_img, max_env, occ_df], axis=1)
-        df['AudImg'] = df[['Audio', 'Image']].max(axis=1)
+        df.insert(loc=2, column='AudImg', value=df[['Audio', 'Image']].max(axis=1))
+
         df['date'] = df.index
         df['date'] = pd.to_datetime(df['date']) 
         df.insert(loc=0, column='day', value=df['date'].dt.date)
@@ -81,10 +82,10 @@ if __name__ == '__main__':
         df = df[df_daysIn]
 
         df.drop(columns=['date', 'day'], inplace=True)
-
+        df.index.name = 'timestamp'
+        
         print(df.isna().sum())
-        print(df)
-        # fname = os.path.join(root_dir, 'SimpleSummaries', f'{H_num}_infSummary.csv')
-        # df.to_csv(fname)
+        # print(df)
+        fname = os.path.join(root_dir, 'SimpleSummaries', f'{H_num}_infSummary.csv')
+        df.to_csv(fname)
 
-        sys.exit()
