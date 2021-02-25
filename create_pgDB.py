@@ -34,7 +34,7 @@ def final_fill(df):
     for hub in df['hub'].unique():
         hub_df = df.loc[df['hub'] == hub]
         hub_df.reset_index(inplace=True)
-        hub_df = get_forward_pred(hub_df)
+        # hub_df = get_forward_pred(hub_df)
         hub_df.index = hub_df['index']
         hub_df = hub_df.drop(columns = ['index'])
         
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     if not os.path.isfile(occ_file):
         print('No occupancy summary found. Generating CSV...')
         write_occupancy_df(root_dir)
-    sys.exit()
+    # sys.exit()
     
     db_file = os.path.join(root_dir, 'Full_inferences', f'{home_system}_full_{db_type}.csv')
     if not os.path.isfile(db_file):
@@ -240,6 +240,6 @@ if __name__ == '__main__':
     print(f'NANS!!!!!! (after): {final_df.isna().sum()}')
 
 
-    home_parameters = {'home': home_system.lower().replace('-', '_')}
-    pg = PostgreSQL(home_parameters, schema=schema)
-    create_pg(final_df, db_type, drop=True)
+    # home_parameters = {'home': home_system.lower().replace('-', '_')}
+    # pg = PostgreSQL(home_parameters, schema=schema)
+    # create_pg(final_df, db_type, drop=True)
